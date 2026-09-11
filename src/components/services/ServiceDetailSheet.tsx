@@ -149,7 +149,11 @@ export function ServiceDetailSheet() {
       // Switching option while in-cart re-adds at the new option; a unit count
       // from the previous option does not carry over (the effect above resets
       // it), so this intentionally re-adds at the default quantity.
-      addToCart(service.id, 'any', variantId);
+      // Not reported as `add_to_cart`: the guest is amending a line already in
+      // the cart, not adding a new one.
+      addToCart(service.id, 'any', variantId, undefined, undefined, {
+        silentAnalytics: true,
+      });
     }
   };
 

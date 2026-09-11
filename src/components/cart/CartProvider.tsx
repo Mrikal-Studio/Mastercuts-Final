@@ -32,6 +32,7 @@ import {
   type ServiceUnits,
 } from '@/lib/api/bookings';
 import { ApiError, NetworkError, toErrorMessage } from '@/lib/api/errors';
+import { trackAddToCart } from '@/lib/analytics';
 
 const SELF_GUEST_ID = 'self';
 
@@ -110,8 +111,12 @@ interface CartContextValue {
   /**
    * `units` applies only to a unit-priced variant (per nail); it is ignored for
    * ordinary services, whose price already covers the whole line.
+   *
+   * `options.silentAnalytics` suppresses the `add_to_cart` event for adds that
+   * are not a new purchase intent — currently only swapping the variant on a
+   * line already in the cart. The cart behaviour is unchanged either way.
    */
-  addToCart: (serviceId: string, therapistPref?: string | 'any', variantId?: string, parentItemId?: string, units?: number) => string | null;
+  addToCart: (serviceId: string, therapistPref?: string | 'any', variantId?: string, parentItemId?: string, units?: number, options?: { silentAnalytics?: boolean }) => string | null;
   addJourneyToCart: (journeyId: string) => boolean;
   removeItem: (itemId: string) => void;
   updateTherapistPref: (itemId: string, therapistPref: string | 'any') => void;
@@ -158,7 +163,7 @@ const BASKET_VIEW: DrawerView = { name: 'basket' };
 const SECTION_INDEX_VIEW: DrawerView = { name: 'section-index' };
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { getService, getJourney } = useCatalog();
+  const { getService, getJourney, getSectionById } = useCatalog();
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [account, setAccount] = useState<LightAccount | null>(null);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
@@ -246,7 +251,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [surface]);
 
   const addToCart = useCallback<CartContextValue['addToCart']>(
-    (serviceId, therapistPref = 'any', variantId, parentItemId, units) => {
+    (serviceId, therapistPref = 'any', variantId, parentItemId, units, options) => {
       const service = getService(serviceId);
       if (!service) {
         toast.error('Service not found');
@@ -308,9 +313,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
         return { ...prev, items: [...prev.items, item], updatedAt: Date.now() };
       });
+
+      // Analytics — outside the updater on purpose. `<StrictMode>` double-
+      // invokes state updaters in development, so pushing from inside would
+      // double-count every add. `added` is false when a guard above rejected
+      // the add (cart full), so a blocked add reports nothing.
+      if (added && !options?.silentAnalytics) {
+        // Unit-priced lines quote a RATE: send the rate as `price` and the unit
+        // count as `quantity`, never the line total, because GA4 multiplies the
+        // two. Ordinary lines are a flat price at quantity 1.
+        trackAddToCart([
+          {
+            item_id: service.id,
+            item_name: service.name,
+            price: isUnitPriced ? unitRate : effectivePrice,
+            quantity: unitQty,
+            item_variant: effectiveVariantLabel,
+            item_category: getSectionById(service.categoryId)?.name,
+          },
+        ]);
+      }
+
       return added ? newId : null;
     },
-    [getService]
+    [getService, getSectionById]
   );
 
   const addJourneyToCart = useCallback<CartContextValue['addJourneyToCart']>(
@@ -360,6 +386,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         toast.success(`Added · ${journey.name}`);
         return { ...prev, items: [...prev.items, item], updatedAt: Date.now() };
       });
+
+      // See the note in `addToCart`. `added` stays false when the journey was
+      // already in the cart or the cart was full, so neither reports an add.
+      // A package is reported as ONE item at its combo price — the price the
+      // customer is charged. Its members are display-only and never priced
+      // independently, so emitting them would double-count the revenue.
+      if (added) {
+        trackAddToCart([
+          {
+            item_id: journey.id,
+            item_name: journey.name,
+            price: journey.price,
+            quantity: 1,
+            item_category: journey.category,
+          },
+        ]);
+      }
+
       return added;
     },
     [getJourney]
