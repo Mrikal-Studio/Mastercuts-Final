@@ -44,7 +44,7 @@ export function ServiceCard({
     e.preventDefault();
     e.stopPropagation();
     if (hasVariants || hasAddOns) {
-      openServiceDetail(service.id, service.ritualId);
+      openServiceDetail(service.id);
       return;
     }
     addToCart(service.id, 'any');
@@ -69,7 +69,7 @@ export function ServiceCard({
 
   const handleReadMore = () => {
     if (onReadMore) onReadMore(service);
-    else openServiceDetail(service.id, service.ritualId);
+    else openServiceDetail(service.id);
   };
 
   const bullets =

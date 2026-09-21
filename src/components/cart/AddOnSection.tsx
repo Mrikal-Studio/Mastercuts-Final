@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { useCart, formatAed, formatDuration } from './CartProvider';
-import { getAddOnSuggestions } from '@/lib/booking/catalog';
+import { useCatalog } from '@/lib/booking/CatalogProvider';
 import { pickServiceImage } from '@/lib/booking/types';
 import { useAudience } from '@/components/services/useAudience';
 
@@ -10,6 +10,7 @@ import { useAudience } from '@/components/services/useAudience';
 // the add-ons so the guest can attach them to their ritual.
 export function AddOnSection() {
   const { cart, addToCart } = useCart();
+  const { getAddOnSuggestions } = useCatalog();
   const [audience] = useAudience();
 
   const cartServiceIds = useMemo(
@@ -19,7 +20,7 @@ export function AddOnSection() {
 
   const addOns = useMemo(
     () => getAddOnSuggestions(cartServiceIds),
-    [cartServiceIds]
+    [cartServiceIds, getAddOnSuggestions]
   );
 
   if (addOns.length === 0) return null;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { Flower2, HandHeart, Scissors, Sun } from 'lucide-react';
+import { Flower2, HandHeart, Scissors, Sparkles, Sun } from 'lucide-react';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
 import { useAudience } from '@/components/services/useAudience';
 import { AudienceToggle } from '@/components/services/AudienceToggle';
@@ -9,89 +9,58 @@ import { cn } from '@/lib/utils';
 
 const RA_EMBLEM = '/assets/Logo/ra-emblem.png';
 
-// At-home categories during the transition. 'signature' is the entry-tier
-// Ra Experience intro; the other three are the existing studio rituals.
-type GroupId = 'signature' | 'massage' | 'nails' | 'threading';
-
 type IconComponent = ComponentType<{ className?: string; strokeWidth?: number }>;
 
-interface Group {
-  id: GroupId;
-  title: string;
-  italic?: string;
-  tagline: string;
-  description: string;
-  icon: IconComponent;
-  /**
-   * Returns true if a Service belongs in this group. Matches on `ritualId`
-   * (a stable slug set by the adapter) rather than `id`, because the bookable
-   * service id is now a backend UUID and no longer carries a category prefix.
-   */
-  matches: (service: { id: string; ritualId: string }) => boolean;
-}
+/**
+ * Backend `icon_key` → component. The KEY is catalog configuration and lives in
+ * DynamoDB; the component cannot, so the mapping stays here. An unrecognised
+ * key falls back to Sparkles rather than rendering nothing, so adding a section
+ * from the admin portal never produces a broken chip.
+ */
+const ICONS: Record<string, IconComponent> = {
+  sun: Sun,
+  'hand-heart': HandHeart,
+  'flower-2': Flower2,
+  scissors: Scissors,
+};
+const iconFor = (key: string): IconComponent => ICONS[key] ?? Sparkles;
 
-const GROUPS: Group[] = [
-  {
-    id: 'signature',
-    title: 'Signature',
-    italic: 'Rituals',
-    tagline: 'Begin your Ra Experience',
-    description:
-      'A focused 45-minute introduction to the Ra approach — choose this to meet the studio for the first time.',
-    icon: Sun,
-    matches: (s) => s.ritualId === 'signature-rituals',
-  },
-  {
-    id: 'massage',
-    title: 'Body Rituals',
-    italic: 'Massages',
-    tagline: 'Wellness',
-    description:
-      'Signature, deep tissue, Balinese and Swedish — brought into your home.',
-    icon: HandHeart,
-    matches: (s) => s.ritualId === 'somatic-recovery',
-  },
-  {
-    id: 'nails',
-    title: 'Hand & Feet',
-    italic: 'Rituals',
-    tagline: 'Coming soon',
-    description: 'Manicure, pedicure and care rituals, launching ahead of full studio opening.',
-    icon: Flower2,
-    matches: (s) => s.ritualId === 'alchemic-aesthetics',
-  },
-  {
-    id: 'threading',
-    title: 'Threading',
-    italic: 'Rituals',
-    tagline: 'Coming soon',
-    description: 'Precise brow, lip and full-face shaping, launching ahead of full studio opening.',
-    icon: Scissors,
-    matches: (s) => s.ritualId === 'velvet-smooth',
-  },
-];
-
+/**
+ * The section list, its order, titles, copy, icons and which are "coming soon"
+ * all come from the backend now — see
+ * docs/master-cuts/05-catalog-backend-driven-refactor.md. This page renders
+ * whatever `/services` says is deliverable at home; it does not decide.
+ */
 const SCROLL_BREATHING = 12;
 
 export function AtHomePage() {
   const [audience, setAudience] = useAudience();
-  const [activeId, setActiveId] = useState<GroupId>('signature');
+  // Scroll-spy owns this once the user moves; before that (and whenever the
+  // selected section disappears) it is DERIVED from the catalog below rather
+  // than synced with an effect, which would cascade an extra render.
+  const [selectedId, setSelectedId] = useState<string>('');
 
   const filterRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = useRef<Record<GroupId, HTMLElement | null>>({} as never);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const chipScrollRef = useRef<HTMLDivElement>(null);
-  const chipRefs = useRef<Record<GroupId, HTMLButtonElement | null>>({} as never);
+  const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const reduceMotion = useReducedMotion();
 
-  const { getAtHomeServices } = useCatalog();
-  const services = useMemo(() => getAtHomeServices(audience), [audience, getAtHomeServices]);
+  const { getSections } = useCatalog();
+  // Everything deliverable at home, in backend order, already audience-filtered.
+  // `coming_soon` sections are included and render as placeholders.
+  const sections = useMemo(
+    () => getSections('home', audience),
+    [audience, getSections],
+  );
 
-  const grouped = useMemo(() => {
-    return GROUPS.map((g) => ({
-      group: g,
-      items: services.filter((s) => g.matches(s)),
-    }));
-  }, [services]);
+  // The catalog arrives asynchronously, so the first active chip cannot be a
+  // constant. Falling back to the first section here also covers a section
+  // vanishing mid-session (an admin disabling it), with no effect required.
+  const activeId =
+    selectedId && sections.some((s) => s.id === selectedId)
+      ? selectedId
+      : (sections[0]?.id ?? '');
 
   useLayoutEffect(() => {
     const update = () => {
@@ -115,7 +84,7 @@ export function AtHomePage() {
     };
   }, []);
 
-  const scrollToSection = useCallback((id: GroupId, behavior: ScrollBehavior = 'smooth') => {
+  const scrollToSection = useCallback((id: string, behavior: ScrollBehavior = 'smooth') => {
     const el = sectionRefs.current[id];
     if (!el) return;
     const filter = filterRef.current;
@@ -129,13 +98,13 @@ export function AtHomePage() {
     const compute = () => {
       const filterBottom = filterRef.current?.getBoundingClientRect().bottom ?? 120;
       const threshold = filterBottom + SCROLL_BREATHING + 4;
-      let candidate: GroupId = grouped[0]?.group.id ?? 'signature';
-      for (const { group } of grouped) {
-        const el = sectionRefs.current[group.id];
+      let candidate = sections[0]?.id ?? '';
+      for (const sec of sections) {
+        const el = sectionRefs.current[sec.id];
         if (!el) continue;
-        if (el.getBoundingClientRect().top <= threshold) candidate = group.id;
+        if (el.getBoundingClientRect().top <= threshold) candidate = sec.id;
       }
-      setActiveId((prev) => (prev === candidate ? prev : candidate));
+      setSelectedId((prev) => (prev === candidate ? prev : candidate));
     };
     const onScroll = () => {
       if (raf) return;
@@ -150,7 +119,7 @@ export function AtHomePage() {
       window.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [grouped]);
+  }, [sections]);
 
   // Keep the active chip centered in its horizontally-scrollable container.
   // Fires whenever the active id changes — either from scroll-spy or a tap.
@@ -170,12 +139,12 @@ export function AtHomePage() {
     container.scrollTo({ left: clamped, behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [activeId, reduceMotion]);
 
-  const handleChipClick = (id: GroupId) => {
-    setActiveId(id);
+  const handleChipClick = (id: string) => {
+    setSelectedId(id);
     scrollToSection(id);
   };
 
-  const setSectionRef = (id: GroupId) => (el: HTMLElement | null) => {
+  const setSectionRef = (id: string) => (el: HTMLElement | null) => {
     sectionRefs.current[id] = el;
   };
 
@@ -240,23 +209,29 @@ export function AtHomePage() {
 
         {/* Category chip row — full width container. Inner uses w-max so it
             centers when content fits and overflows-scrolls when it doesn't. */}
-        {grouped.length > 0 && (
+        {sections.length > 0 && (
           <div className="px-6 lg:px-16 flex justify-center">
             <div
               ref={chipScrollRef}
               className="flex gap-2 w-max max-w-full overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {grouped.map(({ group }) => {
-                const active = group.id === activeId;
-                const Icon = group.icon;
+              {sections.map((section) => {
+                const active = section.id === activeId;
+                const Icon = iconFor(section.iconKey);
+                // A section with nothing bookable yet says so on the chip; the
+                // backend `status` is what decides, not an empty service list.
+                const eyebrow =
+                  section.status === 'coming_soon'
+                    ? 'Coming soon'
+                    : section.tagline || section.shortName;
                 return (
                   <button
-                    key={group.id}
+                    key={section.id}
                     ref={(el) => {
-                      chipRefs.current[group.id] = el;
+                      chipRefs.current[section.id] = el;
                     }}
                     type="button"
-                    onClick={() => handleChipClick(group.id)}
+                    onClick={() => handleChipClick(section.id)}
                     className={cn(
                       'shrink-0 rounded-2xl border px-3 py-2.5 transition-colors text-left flex items-center gap-2.5 min-w-[140px]',
                       active
@@ -279,8 +254,7 @@ export function AtHomePage() {
                           active ? 'text-white' : 'text-text-primary',
                         )}
                       >
-                        {group.title}
-                        {group.italic ? <span className="italic"> {group.italic}</span> : null}
+                        {section.name}
                       </span>
                       <span
                         className={cn(
@@ -288,7 +262,7 @@ export function AtHomePage() {
                           active ? 'text-white/60' : 'text-text-secondary',
                         )}
                       >
-                        {group.tagline}
+                        {eyebrow}
                       </span>
                     </span>
                   </button>
@@ -299,8 +273,8 @@ export function AtHomePage() {
         )}
       </div>
 
-      {/* Grouped categories */}
-      {grouped.length === 0 ? (
+      {/* Sections, straight from the backend hierarchy */}
+      {sections.length === 0 ? (
         <div className="px-6 lg:px-16 pt-16 pb-20">
           <div className="mx-auto max-w-lg text-center">
             <p className="text-sm text-text-secondary">
@@ -310,66 +284,70 @@ export function AtHomePage() {
           </div>
         </div>
       ) : (
-        grouped.map(({ group, items }) => (
-          <section
-            key={group.id}
-            ref={setSectionRef(group.id)}
-            id={group.id}
-            className="px-6 lg:px-16 pt-10 pb-14 border-b border-black/5"
-            style={{ scrollMarginTop: 'calc(var(--athome-filter-h, 120px) + 12px)' }}
-          >
-            <div className="mx-auto max-w-lg">
-              <div className="mb-6">
-                {items.length > 0 ? (
-                  /* Active section: thin gold rules flank a small uppercase title */
-                  <div className="flex items-center gap-3">
-                    <span className="flex-1 h-px bg-accent-gold/60" />
-                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-text-secondary whitespace-nowrap">
-                      {group.title}
-                      {group.italic ? ` ${group.italic}` : ''}
-                    </p>
-                    <span className="flex-1 h-px bg-accent-gold/60" />
-                  </div>
-                ) : (
-                  /* Coming-soon section: full editorial header */
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold">
-                      {group.tagline}
-                    </p>
-                    <h2 className="font-serif text-[32px] text-text-primary leading-[1.05]">
-                      {group.title}
-                      {group.italic && (
-                        <>
-                          {' '}
-                          <span className="italic">{group.italic}</span>
-                        </>
+        sections.map((section) => {
+          // Two distinct reasons a section shows no cards, and they read
+          // differently: the backend says it is not live yet, or this audience
+          // filter happens to exclude everything in it.
+          const comingSoon = section.status !== 'active';
+          const bookable = comingSoon ? [] : section.services;
+          return (
+            <section
+              key={section.id}
+              ref={setSectionRef(section.id)}
+              id={section.id}
+              className="px-6 lg:px-16 pt-10 pb-14 border-b border-black/5"
+              style={{ scrollMarginTop: 'calc(var(--athome-filter-h, 120px) + 12px)' }}
+            >
+              <div className="mx-auto max-w-lg">
+                <div className="mb-6">
+                  {bookable.length > 0 ? (
+                    /* Live section: thin gold rules flank a small uppercase title */
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 h-px bg-accent-gold/60" />
+                      <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-text-secondary whitespace-nowrap">
+                        {section.name}
+                      </p>
+                      <span className="flex-1 h-px bg-accent-gold/60" />
+                    </div>
+                  ) : (
+                    /* Coming-soon / empty section: full editorial header */
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold">
+                        {comingSoon ? 'Coming soon' : section.tagline || section.shortName}
+                      </p>
+                      <h2 className="font-serif text-[32px] text-text-primary leading-[1.05]">
+                        {section.name}
+                      </h2>
+                      {section.description && (
+                        <p className="text-text-secondary text-sm lg:text-base leading-6 max-w-prose">
+                          {section.description}
+                        </p>
                       )}
-                    </h2>
-                    <p className="text-text-secondary text-sm lg:text-base leading-6 max-w-prose">
-                      {group.description}
-                    </p>
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  {bookable.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-6 py-10 text-center">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold mb-3">
+                        {comingSoon ? 'Coming soon' : 'Nothing here yet'}
+                      </p>
+                      <p className="text-text-secondary text-sm leading-relaxed max-w-sm mx-auto">
+                        {comingSoon
+                          ? `We're finalising this menu. ${section.name} will be available shortly, check back ahead of the full studio opening.`
+                          : `No ${section.name} services match this filter — try switching between Ladies and Gentlemen above.`}
+                      </p>
+                    </div>
+                  ) : (
+                    bookable.map((svc) => (
+                      <ServiceCard key={svc.id} service={svc} />
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="space-y-4">
-                {items.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-6 py-10 text-center">
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold mb-3">
-                      Coming soon
-                    </p>
-                    <p className="text-text-secondary text-sm leading-relaxed max-w-sm mx-auto">
-                      We're finalising this menu. {group.title} {group.italic} will be available shortly, check back ahead of the full studio opening.
-                    </p>
-                  </div>
-                ) : (
-                  items.map((svc) => (
-                    <ServiceCard key={svc.id} service={svc} />
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-        ))
+            </section>
+          );
+        })
       )}
 
     </main>

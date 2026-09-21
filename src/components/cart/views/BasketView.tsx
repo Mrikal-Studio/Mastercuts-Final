@@ -225,6 +225,9 @@ export function BasketView({ onClose, onContinue }: Props) {
                       {item.variantLabel && (
                         <span className="text-text-secondary"> · {item.variantLabel}</span>
                       )}
+                      {item.units && item.units > 1 && (
+                        <span className="text-text-secondary"> × {item.units}</span>
+                      )}
                     </span>
                     <span className="shrink-0 text-sm text-text-primary tabular-nums">
                       {formatAed(item.price)}

@@ -11,9 +11,28 @@ import {
 } from '@/components/ui/accordion';
 import { useCart, formatAed, formatDuration } from '@/components/cart/CartProvider';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
-import { pickServiceImage } from '@/lib/booking/types';
+import { pickServiceImage, type PricingUnit } from '@/lib/booking/types';
 import { useAudience } from '@/components/services/useAudience';
 import { cn } from '@/lib/utils';
+
+/** Counts offered for a unit-priced option. Ten covers a full set of nails. */
+const UNIT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/** Customer-facing noun for a pricing unit, singular or plural. */
+function unitNoun(unit: PricingUnit, count: number): string {
+  if (unit === 'nail') return count === 1 ? 'nail' : 'nails';
+  if (unit === 'full_hands') return 'full hands';
+  return count === 1 ? 'service' : 'services';
+}
+
+/**
+ * True when a label already reads as a duration ("60 min", "90 mins"), so the
+ * pill doesn't print the duration twice. Presentation only — the label itself
+ * is never parsed for a value, and a non-match simply shows both parts.
+ */
+function isDurationLabel(label: string): boolean {
+  return /^\s*\d+\s*min/i.test(label);
+}
 
 export function ServiceDetailSheet() {
   const {
@@ -27,10 +46,10 @@ export function ServiceDetailSheet() {
   } = useCart();
   const open = surface === 'service-detail' && !!serviceDetail;
   const {
-    getRitual,
     getService,
-    getServicesForRitual,
-    getTherapistsForRitual,
+    getSectionById,
+    getSectionServices,
+    getTherapistsForSection,
     getAddOnsForService,
   } = useCatalog();
 
@@ -38,20 +57,26 @@ export function ServiceDetailSheet() {
     () => (serviceDetail ? getService(serviceDetail.serviceId) : undefined),
     [serviceDetail, getService]
   );
-  const ritual = useMemo(
-    () => (serviceDetail ? getRitual(serviceDetail.ritualId) : undefined),
-    [serviceDetail, getRitual]
+  /**
+   * The section is derived from the SERVICE, not passed in alongside it. That
+   * removes the second argument from openServiceDetail and, more importantly,
+   * removes the failure mode where a caller supplying a stale/unknown grouping
+   * key made the whole sheet render nothing (see the guard below).
+   */
+  const section = useMemo(
+    () => getSectionById(service?.categoryId),
+    [service, getSectionById]
   );
   const therapists = useMemo(
-    () => (serviceDetail ? getTherapistsForRitual(serviceDetail.ritualId) : []),
-    [serviceDetail, getTherapistsForRitual]
+    () => (section ? getTherapistsForSection(section.id) : []),
+    [section, getTherapistsForSection]
   );
   const relatedServices = useMemo(() => {
-    if (!serviceDetail) return [];
-    return getServicesForRitual(serviceDetail.ritualId).filter(
+    if (!section || !serviceDetail) return [];
+    return getSectionServices(section.id).filter(
       (s) => s.id !== serviceDetail.serviceId
     );
-  }, [serviceDetail, getServicesForRitual]);
+  }, [section, serviceDetail, getSectionServices]);
 
   const cartItem = cart.items.find((i) => i.serviceId === serviceDetail?.serviceId);
   const inCart = !!cartItem;
@@ -64,6 +89,10 @@ export function ServiceDetailSheet() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
     cartItem?.variantId ?? defaultVariantId
   );
+
+  // How many units of a unit-priced option (e.g. nails). Ignored entirely for
+  // ordinary per-service options, which never render the picker.
+  const [unitCount, setUnitCount] = useState<number>(cartItem?.units ?? 1);
 
   // Eligible add-ons for this service (empty for add-ons themselves and for
   // services with no addon_groups). Checkbox selection is local to the sheet
@@ -81,7 +110,18 @@ export function ServiceDetailSheet() {
     setSelectedAddOnIds(new Set());
   }, [serviceDetail?.serviceId]);
 
-  if (!service || !ritual || !serviceDetail) return null;
+  // Reset the unit count when a different option (or service) is opened —
+  // "5 nails" must not carry over onto an unrelated selection.
+  useEffect(() => {
+    setUnitCount(cartItem?.units ?? 1);
+  }, [selectedVariantId, serviceDetail?.serviceId, cartItem?.units]);
+
+  // Deliberately NOT gated on `section`. It used to be gated on `ritual`, which
+  // meant an unresolvable grouping key blanked the entire sheet — price,
+  // variants, add-ons and the Add button included — rather than degrading. The
+  // section only supplies the breadcrumb, FAQs and related list, each of which
+  // is individually optional below.
+  if (!service || !serviceDetail) return null;
 
   const toggleAddOn = (id: string) =>
     setSelectedAddOnIds((prev) => {
@@ -94,12 +134,26 @@ export function ServiceDetailSheet() {
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? variants[0] ?? null;
   const displayDuration = selectedVariant?.durationMin ?? service.durationMin;
-  const displayPrice = selectedVariant?.price ?? service.price;
+
+  // Unit-priced options (per nail) quote a RATE, so the price shown depends on
+  // how many units the customer picks. Ordinary options have no unit and this
+  // whole branch stays inert.
+  const pricingUnit = selectedVariant?.pricingUnit;
+  const isUnitPriced = !!pricingUnit && pricingUnit !== 'service';
+  const unitRate = selectedVariant?.price ?? service.price;
+  const displayPrice = isUnitPriced ? unitRate * unitCount : unitRate;
 
   const handlePillClick = (variantId: string) => {
     setSelectedVariantId(variantId);
     if (inCart && variantId !== cartItem?.variantId) {
-      addToCart(service.id, 'any', variantId);
+      // Switching option while in-cart re-adds at the new option; a unit count
+      // from the previous option does not carry over (the effect above resets
+      // it), so this intentionally re-adds at the default quantity.
+      // Not reported as `add_to_cart`: the guest is amending a line already in
+      // the cart, not adding a new one.
+      addToCart(service.id, 'any', variantId, undefined, undefined, {
+        silentAnalytics: true,
+      });
     }
   };
 
@@ -109,7 +163,13 @@ export function ServiceDetailSheet() {
       return;
     }
     // Add the parent first; its returned cart-item id links the checked add-ons.
-    const parentItemId = addToCart(service.id, 'any', selectedVariantId);
+    const parentItemId = addToCart(
+      service.id,
+      'any',
+      selectedVariantId,
+      undefined,
+      isUnitPriced ? unitCount : undefined,
+    );
     if (parentItemId) {
       for (const addOn of addOns) {
         if (selectedAddOnIds.has(addOn.id)) {
@@ -167,7 +227,7 @@ export function ServiceDetailSheet() {
                 className="max-w-3xl"
               >
                 <p className="text-[10px] uppercase tracking-[0.22em] text-white/60 mb-3">
-                  {ritual.tagline} · {ritual.title} {ritual.titleItalic}
+                  {[section?.shortName, section?.name].filter(Boolean).join(" · ")}
                 </p>
                 <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[0.98] mb-4 text-white">
                   {service.name}
@@ -200,11 +260,12 @@ export function ServiceDetailSheet() {
                   {hasVariants && (
                     <div className="mb-6">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-3">
-                        Choose duration
+                        Choose an option
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {variants.map((v) => {
                           const isActive = v.id === selectedVariantId;
+                          const perUnit = !!v.pricingUnit && v.pricingUnit !== 'service';
                           return (
                             <button
                               key={v.id}
@@ -217,7 +278,10 @@ export function ServiceDetailSheet() {
                                   : 'bg-transparent text-text-primary/80 border-black/15 hover:border-black/40 hover:text-text-primary'
                               )}
                             >
-                              <span className="text-sm font-medium">{v.durationMin} min</span>
+                              {/* The option's own label, rendered verbatim —
+                                  "90 min", "Gel Polish", "Short — Curl". Never
+                                  parsed, and never replaced by the duration. */}
+                              <span className="text-sm font-medium">{v.label}</span>
                               <span
                                 className={cn(
                                   'text-[10px] uppercase tracking-[0.16em] mt-1',
@@ -225,11 +289,50 @@ export function ServiceDetailSheet() {
                                 )}
                               >
                                 {formatAed(v.price)}
+                                {perUnit ? ` / ${unitNoun(v.pricingUnit!, 1)}` : ''}
+                                {/* Duration is shown alongside the label only
+                                    when the label isn't already the duration,
+                                    so pure duration variants don't read
+                                    "60 min · 60 min". */}
+                                {v.durationMin && !isDurationLabel(v.label)
+                                  ? ` · ${v.durationMin} min`
+                                  : ''}
                               </span>
                             </button>
                           );
                         })}
                       </div>
+                    </div>
+                  )}
+
+                  {isUnitPriced && (
+                    <div className="mb-6">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-3">
+                        How many {unitNoun(pricingUnit!, 2)}?
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {UNIT_CHOICES.map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setUnitCount(n)}
+                            className={cn(
+                              'w-11 h-11 rounded-xl border text-sm font-medium transition-all',
+                              n === unitCount
+                                ? 'bg-bg-dark text-white border-bg-dark'
+                                : 'bg-transparent text-text-primary/80 border-black/15 hover:border-black/40'
+                            )}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-text-secondary mt-3">
+                        {formatAed(unitRate)} / {unitNoun(pricingUnit!, 1)} × {unitCount} ={' '}
+                        <span className="text-text-primary font-medium">
+                          {formatAed(displayPrice)}
+                        </span>
+                      </p>
                     </div>
                   )}
 
@@ -446,8 +549,8 @@ export function ServiceDetailSheet() {
                 </section>
               )}
 
-              {/* Questions we're often asked — ritual FAQs */}
-              {ritual.faqs.length > 0 && (
+              {/* Questions we're often asked — backend-driven, per sub-category */}
+              {section && section.faqs.length > 0 && (
                 <section className="pt-10 border-t border-black/5">
                   <p className="text-[10px] uppercase tracking-[0.22em] text-text-secondary mb-3">
                     Questions we're often asked
@@ -456,7 +559,7 @@ export function ServiceDetailSheet() {
                     Before you <span className="italic">book</span>
                   </h2>
                   <Accordion type="single" collapsible className="w-full">
-                    {ritual.faqs.map((faq, i) => (
+                    {section.faqs.map((faq, i) => (
                       <AccordionItem
                         key={i}
                         value={`faq-${i}`}
@@ -481,14 +584,14 @@ export function ServiceDetailSheet() {
                     Also in this category
                   </p>
                   <h2 className="font-serif text-3xl lg:text-4xl leading-tight mb-8 text-text-primary">
-                    Other <span className="italic">{ritual.titleItalic.toLowerCase()}</span> services
+                    Other <span className="italic">{(section?.shortName ?? "").toLowerCase()}</span> services
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     {relatedServices.map((s) => (
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => openServiceDetail(s.id, ritual.id)}
+                        onClick={() => openServiceDetail(s.id)}
                         className="group text-left"
                       >
                         <div className="aspect-[4/3] overflow-hidden mb-3">

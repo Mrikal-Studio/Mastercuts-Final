@@ -122,6 +122,9 @@ export function SuccessState({ booking, onDone }: Props) {
                 >
                   {item.parentItemId ? '+ ' : ''}
                   {item.name}
+                  {item.variantLabel && (
+                    <span className="text-white/50"> · {item.variantLabel}</span>
+                  )}
                 </p>
                 <p className="text-sm text-white/60 shrink-0">{formatDuration(item.durationMin)}</p>
               </div>

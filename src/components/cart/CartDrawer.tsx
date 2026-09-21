@@ -29,8 +29,8 @@ export function CartDrawer() {
   const canGoBack = drawerStack.length > 1;
 
   const viewKey =
-    currentDrawerView.name === 'ritual-services'
-      ? `ritual-services:${currentDrawerView.ritualId}`
+    currentDrawerView.name === 'section-services'
+      ? `section-services:${currentDrawerView.sectionId}`
       : currentDrawerView.name === 'journey-detail'
         ? `journey-detail:${currentDrawerView.journeyId}`
         : currentDrawerView.name;
@@ -63,16 +63,16 @@ export function CartDrawer() {
                 {currentDrawerView.name === 'basket' && (
                   <BasketView onClose={closeCart} onContinue={openCheckout} />
                 )}
-                {currentDrawerView.name === 'ritual-index' && (
+                {currentDrawerView.name === 'section-index' && (
                   <RitualIndexView
                     onClose={closeCart}
                     canGoBack={canGoBack}
                     onBack={popDrawerView}
                   />
                 )}
-                {currentDrawerView.name === 'ritual-services' && (
+                {currentDrawerView.name === 'section-services' && (
                   <RitualServicesView
-                    ritualId={currentDrawerView.ritualId}
+                    sectionId={currentDrawerView.sectionId}
                     onClose={closeCart}
                     onBack={popDrawerView}
                   />

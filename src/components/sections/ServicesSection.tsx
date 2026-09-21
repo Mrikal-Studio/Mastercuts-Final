@@ -8,7 +8,7 @@ import { useAudience } from '@/components/services/useAudience';
 import { AudienceToggle } from '@/components/services/AudienceToggle';
 import {
   RitualChipRow,
-  HOME_CHIPS,
+  type RitualChip,
   type ChipId,
 } from '@/components/services/RitualChipRow';
 import { ServiceCard, JourneyCard } from '@/components/services/ServiceCard';
@@ -20,12 +20,28 @@ export function ServicesSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const [audience, setAudience] = useAudience();
-  const { rituals, packages, getServicesForRitual } = useCatalog();
-  // Desktop wipe animation only operates on rituals (not the Curated Journeys chip).
-  const scrollRituals = rituals;
+  const { sections, packages } = useCatalog();
+  const chips = useMemo<RitualChip[]>(
+    () =>
+      sections.map((sec) => ({
+        id: sec.id,
+        title: sec.name,
+        subtitle: sec.tagline || sec.shortName,
+        iconKey: sec.iconKey,
+      })),
+    [sections],
+  );
+  // The desktop wipe steps through sections; the Curated Journeys chip is a
+  // link rather than a wipe target.
+  const scrollSections = sections;
 
-  // Mobile chip selection — defaults to first ritual
-  const [mobileChipId, setMobileChipId] = useState<ChipId>(HOME_CHIPS[1]?.id ?? 'atelier');
+  // Mobile chip selection, DERIVED: the catalog arrives asynchronously, so
+  // there is no valid id to default to on the first render.
+  const [selectedChipId, setSelectedChipId] = useState<ChipId>('');
+  const mobileChipId =
+    selectedChipId && chips.some((c) => c.id === selectedChipId)
+      ? selectedChipId
+      : (chips[0]?.id ?? '');
 
   // currentService drives all desktop content
   const [currentService, setCurrentService] = useState(0);
@@ -44,11 +60,11 @@ export function ServicesSection() {
 
       if (rect.top <= 0 && rect.bottom >= viewportHeight) {
         const scrollProgress = Math.abs(rect.top) / (sectionHeight - viewportHeight);
-        const serviceFloat = scrollProgress * scrollRituals.length;
-        const baseIndex = Math.min(Math.floor(serviceFloat), scrollRituals.length - 1);
+        const serviceFloat = scrollProgress * scrollSections.length;
+        const baseIndex = Math.min(Math.floor(serviceFloat), scrollSections.length - 1);
         const subProgress = serviceFloat - Math.floor(serviceFloat);
 
-        const canWipe = baseIndex < scrollRituals.length - 1;
+        const canWipe = baseIndex < scrollSections.length - 1;
 
         if (canWipe && subProgress >= WIPE_START) {
           const progress = (subProgress - WIPE_START) / (1 - WIPE_START);
@@ -69,18 +85,18 @@ export function ServicesSection() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Desktop: click a chip → either scroll to that ritual OR deep-link to explore
+  // Desktop: click a chip → scroll to that section, or deep-link to explore
   const handleDesktopChipChange = useCallback(
     (id: ChipId) => {
       if (id === 'curated-journeys') {
         navigate('/explore#curated-journeys');
         return;
       }
-      const idx = scrollRituals.findIndex((r) => r.id === id);
+      const idx = scrollSections.findIndex((r) => r.id === id);
       if (idx < 0 || !sectionRef.current) return;
       const section = sectionRef.current;
       const scrollable = section.offsetHeight - window.innerHeight;
-      const target = section.offsetTop + (idx / scrollRituals.length) * scrollable + 2;
+      const target = section.offsetTop + (idx / scrollSections.length) * scrollable + 2;
       window.scrollTo({ top: target, behavior: 'smooth' });
     },
     [navigate],
@@ -88,15 +104,15 @@ export function ServicesSection() {
 
   // Mobile: click a chip → swap card (curated-journeys has its own card)
   const handleMobileChipChange = useCallback((id: ChipId) => {
-    setMobileChipId(id);
+    setSelectedChipId(id);
   }, []);
 
   const activeDesktopChipId: ChipId =
-    scrollRituals[currentService]?.id ?? 'atelier';
+    scrollSections[currentService]?.id ?? 'atelier';
 
-  const mobileRitual = useMemo(
-    () => rituals.find((r) => r.id === mobileChipId),
-    [mobileChipId, rituals],
+  const mobileSection = useMemo(
+    () => sections.find((sec) => sec.id === mobileChipId),
+    [mobileChipId, sections],
   );
 
   return (
@@ -124,6 +140,7 @@ export function ServicesSection() {
             <AudienceToggle value={audience} onChange={setAudience} size="sm" />
           </div>
           <RitualChipRow
+            chips={chips}
             activeId={activeDesktopChipId}
             onChange={handleDesktopChipChange}
             variant="dark"
@@ -137,8 +154,8 @@ export function ServicesSection() {
           <div className="relative h-full hidden lg:block overflow-hidden">
             <div className="absolute inset-0">
               <img
-                src={scrollRituals[bgService].image}
-                alt={scrollRituals[bgService].title}
+                src={scrollSections[bgService].imageUrl}
+                alt={scrollSections[bgService].name}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -149,8 +166,8 @@ export function ServicesSection() {
                 style={{ transform: `translateY(${(1 - wipeProgress) * 100}%)` }}
               >
                 <img
-                  src={scrollRituals[nextService].image}
-                  alt={scrollRituals[nextService].title}
+                  src={scrollSections[nextService].imageUrl}
+                  alt={scrollSections[nextService].name}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -168,16 +185,13 @@ export function ServicesSection() {
               className="absolute bottom-10 right-10 z-10 max-w-md text-right"
             >
               <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold mb-3">
-                {scrollRituals[currentService].tagline}
+                {scrollSections[currentService].tagline}
               </p>
               <h2 className="font-serif text-6xl xl:text-7xl leading-[0.95] text-white">
-                <span className="italic text-white/90">
-                  {scrollRituals[currentService].title}
-                </span>{' '}
-                {scrollRituals[currentService].titleItalic}
+                  {scrollSections[currentService].name}
               </h2>
               <p className="mt-5 text-sm xl:text-base text-white/75 leading-relaxed">
-                {scrollRituals[currentService].description}
+                {scrollSections[currentService].description}
               </p>
             </motion.div>
           </div>
@@ -191,7 +205,14 @@ export function ServicesSection() {
               transition={{ duration: 0.4, ease: 'easeOut' }}
               className="w-full max-w-md space-y-4"
             >
-              {getServicesForRitual(scrollRituals[currentService].id, audience)
+            {(scrollSections[currentService]?.services ?? [])
+              .filter(
+                (svc) =>
+                  !svc.isAddon &&
+                  (audience === 'unisex' ||
+                    svc.audience === audience ||
+                    svc.audience === 'unisex'),
+              )
                 .slice(0, 4)
                 .map((svc) => (
                   <ServiceCard key={svc.id} service={svc} />
@@ -199,7 +220,7 @@ export function ServicesSection() {
 
               <button
                 type="button"
-                onClick={() => navigate(`/explore#${scrollRituals[currentService].id}`)}
+                onClick={() => navigate(`/explore#${scrollSections[currentService].id}`)}
                 className="group mt-2 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/70 hover:text-white transition-colors"
               >
                 Explore the ritual
@@ -239,7 +260,7 @@ export function ServicesSection() {
           </div>
         </div>
         <RitualChipRow
-          chips={HOME_CHIPS.filter(c => c.id !== 'curated-journeys')}
+          chips={chips}
           activeId={mobileChipId}
           onChange={handleMobileChipChange}
           variant="dark"
@@ -281,9 +302,9 @@ export function ServicesSection() {
                 <ArrowUpRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </button>
             </motion.div>
-          ) : mobileRitual ? (
+          ) : mobileSection ? (
             <motion.div
-              key={mobileRitual.id + ':' + audience}
+              key={mobileSection.id + ':' + audience}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -292,17 +313,22 @@ export function ServicesSection() {
             >
               <div className="space-y-2">
                 <h2 className="font-serif text-3xl text-white leading-[1.05]">
-                  <span className="italic text-white/90">{mobileRitual.title}</span>{' '}
-                  {mobileRitual.titleItalic}
+                  {mobileSection.name}
                 </h2>
                 <p className="text-white/60 text-sm leading-6 max-w-prose">
-                  {mobileRitual.description}
+                  {mobileSection.description}
                 </p>
               </div>
 
               <div className="space-y-3">
                 {(() => {
-                  const filtered = getServicesForRitual(mobileRitual.id, audience);
+                  const filtered = (mobileSection?.services ?? []).filter(
+                    (svc) =>
+                      !svc.isAddon &&
+                      (audience === 'unisex' ||
+                        svc.audience === audience ||
+                        svc.audience === 'unisex'),
+                  );
                   if (filtered.length === 0) {
                     return (
                       <div className="rounded-xl border border-white/10 bg-white/[0.02] py-6 px-5 text-sm text-white/50 italic">
@@ -318,7 +344,7 @@ export function ServicesSection() {
 
               <button
                 type="button"
-                onClick={() => navigate(`/explore#${mobileRitual.id}`)}
+                onClick={() => navigate(`/explore#${mobileSection.id}`)}
                 className="group mt-1 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/70 hover:text-white transition-colors"
               >
                 Explore the ritual

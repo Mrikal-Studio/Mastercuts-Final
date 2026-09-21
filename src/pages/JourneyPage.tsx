@@ -157,7 +157,7 @@ export function JourneyPage() {
                       <li key={svc.id}>
                         <button
                           type="button"
-                          onClick={() => openServiceDetail(svc.id, svc.ritualId)}
+                          onClick={() => openServiceDetail(svc.id)}
                           className="w-full group flex items-start justify-between gap-3 text-left"
                         >
                           <div className="min-w-0">

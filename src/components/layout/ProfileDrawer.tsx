@@ -23,6 +23,9 @@ interface CardService {
   name: string;
   durationMin?: number;
   price?: number;
+  // Which duration/finish option was booked, e.g. "Classic Nail Polish" vs
+  // "Gel Polish". Absent for services with no variant grouping.
+  variantLabel?: string;
   // True for add-on lines — rendered indented + tagged. Booking order keeps an
   // add-on directly after its parent service, so no explicit grouping needed.
   isAddon?: boolean;
@@ -65,6 +68,7 @@ const fromRemote = (b: ApiBooking): CardBooking => ({
     name: s.name,
     durationMin: s.duration_min,
     price: s.price,
+    variantLabel: s.variant_label,
     isAddon: !!s.is_addon,
   })),
 });
@@ -84,6 +88,7 @@ const fromLocal = (b: BookingRecord): CardBooking => ({
     name: i.name,
     durationMin: i.durationMin,
     price: i.price,
+    variantLabel: i.variantLabel,
     isAddon: !!i.parentItemId,
   })),
 });
@@ -264,6 +269,9 @@ function BookingDetailBody({ b, onClose }: { b: CardBooking; onClose: () => void
                 <span className={s.isAddon ? 'text-text-secondary pl-3' : 'text-text-primary'}>
                   {s.isAddon ? '+ ' : ''}
                   {s.name}
+                  {s.variantLabel && (
+                    <span className="text-text-secondary/60"> · {s.variantLabel}</span>
+                  )}
                   {s.isAddon && <span className="text-text-secondary/60"> · add-on</span>}
                 </span>
                 <span className="text-xs text-text-secondary whitespace-nowrap">

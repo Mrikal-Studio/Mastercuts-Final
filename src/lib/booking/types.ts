@@ -1,44 +1,37 @@
-export type RitualId =
-  | 'atelier'
-  | 'solar-vitality'
-  | 'somatic-recovery'
-  | 'alchemic-aesthetics'
-  | 'longevity-lab'
-  | 'velvet-smooth'
-  | 'body-renewal'
-  | 'signature-rituals';
+// `RitualId` / `Ritual` are gone. Rituals were a frontend-only grouping that
+// duplicated the backend sub-category one-for-one (a proven 8↔8 bijection);
+// sections now come from `/services` and carry their own copy, imagery, icon
+// key and FAQs. See docs/master-cuts/05-catalog-backend-driven-refactor.md.
 
 export type ServiceAudience = 'gentlemen' | 'ladies' | 'unisex';
 
 export type ServiceLocation = 'salon' | 'home' | 'both';
 
-export interface RitualFaq {
-  q: string;
-  a: string;
-}
-
-export interface Ritual {
-  id: RitualId;
-  title: string;
-  titleItalic: string;
-  tagline: string;
-  description: string;
-  longDescription: string;
-  philosophy: string;
-  faqs: RitualFaq[];
-  image: string;
-}
+/** Unit a price is quoted in. Absent/"service" = the price covers the line. */
+export type PricingUnit = 'service' | 'nail' | 'full_hands';
 
 export interface ServiceVariant {
   id: string;
+  /**
+   * The customer-facing option label, rendered verbatim. It is NOT necessarily
+   * a duration — it may be "60 min", "Gel Polish", "Eyebrows", "Short — Curl".
+   * Never parse it; `durationMin` and `price` are independent fields.
+   */
   label: string;
   durationMin: number;
+  /** Per `pricingUnit`. For "service" this is the whole line price. */
   price: number;
+  /** Omitted for ordinary per-service pricing. */
+  pricingUnit?: PricingUnit;
 }
 
 export interface Service {
   id: string;
-  ritualId: RitualId;
+  /**
+   * The backend sub-category this service belongs to (`department_id`).
+   * The only grouping key — resolve the section with `getSectionById`.
+   */
+  categoryId: string;
   name: string;
   description: string;
   detail?: string;
@@ -71,6 +64,14 @@ export interface Service {
   addOn?: boolean;
 }
 
+/**
+ * A bundled entry in catalog.ts. Identical to a Service except it has no
+ * `categoryId` — it is presentation fallback, not a row in the catalog, so it
+ * belongs to no backend sub-category. Only the adapter reads these, and only to
+ * fill fields the API left empty.
+ */
+export type FallbackService = Omit<Service, 'categoryId'>;
+
 export function pickServiceImage(
   service: Pick<Service, 'image' | 'imageGents' | 'imageLadies'>,
   audience: ServiceAudience,
@@ -84,12 +85,20 @@ export interface Therapist {
   id: string;
   name: string;
   title: string;
-  ritualIds: RitualId[];
+  /** Sub-category ids this therapist covers. The roster is empty today. */
+  categoryIds: string[];
   languages: string[];
   image?: string;
   bio?: string;
 }
 
+/**
+ * A package / "Curated Journey" — a bundle that books as ONE appointment.
+ *
+ * Backed by a real `service_dev` row since Phase 6.6. Every pricing field here
+ * comes from the backend and is AUTHORITATIVE; nothing is recomputed from the
+ * member services. See ApiPackage in lib/api/services.ts.
+ */
 export interface Package {
   id: string;
   name: string;
@@ -100,13 +109,46 @@ export interface Package {
   philosophy: string;
   image: string;
   serviceIds: string[];
+  /**
+   * Percent off, from the backend's derived `savings_percent`. Retained under
+   * the original name so the six render sites that print "save N%" did not
+   * change. 0 when the backend could not derive one.
+   */
   savings: number;
+  /** The combo price. What the customer is charged. Backend-authoritative. */
+  price: number;
+  /**
+   * What the appointment occupies. Deliberately NOT the sum of member
+   * durations — a combo is scheduled tighter than its parts.
+   */
+  durationMin: number;
+  /** Sum of member prices at their current catalog price. Derived server-side. */
+  originalPrice: number;
+  /** originalPrice - price, floored at 0. Derived server-side. */
+  savingsAmount: number;
+  /** Resolved members, for display only. Never priced independently. */
+  items: PackageItem[];
+  /** A member is missing or deactivated — the backend rejects the booking. */
+  incomplete: boolean;
+}
+
+/** One service inside a package, as the backend resolved it. */
+export interface PackageItem {
+  id: string;
+  name: string;
+  durationMin: number;
+  price: number;
+  unavailable?: boolean;
+  missing?: boolean;
 }
 
 export interface CartItem {
   id: string;
   serviceId: string;
-  ritualId: RitualId;
+  // NOTE: no category/section key here, deliberately. Carts are persisted to
+  // localStorage, so every field is a migration risk; the section is derivable
+  // from `serviceId` whenever it is needed. Items written by older builds carry
+  // a now-unused `ritualId`, which simply hydrates and is ignored.
   name: string;
   durationMin: number;
   price: number;
@@ -115,6 +157,16 @@ export interface CartItem {
   addedAt: number;
   variantId?: string;
   variantLabel?: string;
+  // ── Unit-based pricing ───────────────────────────────────────────────────
+  // Present only on a unit-priced line (per-nail work). `price` above stays the
+  // LINE TOTAL (unitPrice x units) so every existing total/render keeps working
+  // untouched; these two explain how that total was reached and are what the
+  // booking sends as `service_units`.
+  //
+  // Both optional, so carts persisted by older builds hydrate unchanged.
+  pricingUnit?: PricingUnit;
+  unitPrice?: number;
+  units?: number;
   // Set on an add-on line: the cart-item id of the parent service it was
   // attached to. Removing the parent cascades to its add-ons; at booking the
   // link is sent to the backend (service_links) so history renders the grouping.

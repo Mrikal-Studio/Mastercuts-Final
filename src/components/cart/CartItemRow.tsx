@@ -19,7 +19,7 @@ interface Props {
 
 export function CartItemRow({ item, addOns = [] }: Props) {
   const { removeItem, updateTherapistPref, openServiceDetail } = useCart();
-  const { getTherapistsForRitual, getTherapist, getService } = useCatalog();
+  const { getTherapistsForSection, getTherapist, getService } = useCatalog();
   const isJourney = !!item.journeyId;
 
   if (isJourney) {
@@ -74,14 +74,17 @@ export function CartItemRow({ item, addOns = [] }: Props) {
     );
   }
 
-  const eligibleTherapists = getTherapistsForRitual(item.ritualId);
+  // The cart line no longer stores a grouping key; resolve it from the service.
+  const eligibleTherapists = getTherapistsForSection(
+    getService(item.serviceId)?.categoryId ?? "",
+  );
   const currentTherapist = item.therapistPref !== 'any' ? getTherapist(item.therapistPref) : null;
 
   return (
     <div className="flex gap-4 py-5 border-b border-black/10">
       <button
         type="button"
-        onClick={() => openServiceDetail(item.serviceId, item.ritualId)}
+        onClick={() => openServiceDetail(item.serviceId)}
         className="w-20 h-24 flex-shrink-0 overflow-hidden bg-circle-light"
         aria-label={`View details for ${item.name}`}
       >
@@ -92,7 +95,7 @@ export function CartItemRow({ item, addOns = [] }: Props) {
         <div className="flex items-start justify-between gap-3">
           <button
             type="button"
-            onClick={() => openServiceDetail(item.serviceId, item.ritualId)}
+            onClick={() => openServiceDetail(item.serviceId)}
             className="min-w-0 text-left"
           >
             <h3 className="font-serif text-lg leading-tight text-text-primary truncate">
@@ -105,6 +108,11 @@ export function CartItemRow({ item, addOns = [] }: Props) {
             )}
             <p className="text-xs text-text-secondary mt-1">
               {formatDuration(item.durationMin)} · {formatAed(item.price)}
+              {/* Unit-priced line: show how the total was reached, so the
+                  customer can see the rate they were quoted. */}
+              {item.units && item.units > 1 && item.unitPrice
+                ? ` (${formatAed(item.unitPrice)} × ${item.units})`
+                : ''}
             </p>
           </button>
           <button

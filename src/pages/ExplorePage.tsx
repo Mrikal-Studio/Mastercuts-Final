@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Search, X } from 'lucide-react';
@@ -7,7 +7,7 @@ import { useAudience } from '@/components/services/useAudience';
 import { AudienceToggle } from '@/components/services/AudienceToggle';
 import {
   RitualChipRow,
-  HOME_CHIPS,
+  type RitualChip,
   type ChipId,
 } from '@/components/services/RitualChipRow';
 import { ServiceCard, JourneyCard } from '@/components/services/ServiceCard';
@@ -21,11 +21,8 @@ const SALON_OPEN = false;
 // remain wired so re-enabling is a one-line change.
 const SHOW_CURATED_JOURNEYS = false;
 
-// Module-level so the reference is stable across renders (keeps
-// exhaustive-deps happy in the spy and deep-link effects).
-const VISIBLE_CHIPS = SHOW_CURATED_JOURNEYS
-  ? HOME_CHIPS
-  : HOME_CHIPS.filter((c) => c.id !== 'curated-journeys');
+// Chips are derived from the backend sections inside the component: the
+// catalog arrives asynchronously, so there is no module-level list to index.
 
 // Extra breathing room between the bottom of the sticky filter bar and
 // the heading of the section it "reveals". Keeps the heading from kissing
@@ -35,9 +32,26 @@ const SCROLL_BREATHING = 12;
 export function ExplorePage() {
   const { hash } = useLocation();
   const navigate = useNavigate();
-  const { rituals, packages, getServicesForRitual } = useCatalog();
+  const { sections, packages } = useCatalog();
   const [audience, setAudience] = useAudience();
-  const [activeId, setActiveId] = useState<ChipId>(VISIBLE_CHIPS[0].id);
+
+  // Backend sections in `sort_order`, mapped to the chip shape HOME_CHIPS
+  // used to hold by hand. Matches ServicesSection.tsx exactly.
+  const visibleChips = useMemo<RitualChip[]>(() => {
+    const fromSections = sections.map((sec) => ({
+      id: sec.id,
+      title: sec.name,
+      subtitle: sec.tagline || sec.shortName,
+      iconKey: sec.iconKey,
+    }));
+    return SHOW_CURATED_JOURNEYS
+      ? [
+          { id: 'curated-journeys', title: 'Curated Journeys', subtitle: 'Packages', iconKey: 'gift' },
+          ...fromSections,
+        ]
+      : fromSections;
+  }, [sections]);
+  const [activeId, setActiveId] = useState<ChipId>('');
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchHidden, setSearchHidden] = useState(false);
@@ -159,14 +173,14 @@ export function ExplorePage() {
   useLayoutEffect(() => {
     if (!hash) return;
     const id = hash.replace('#', '') as ChipId;
-    if (!VISIBLE_CHIPS.some((c) => c.id === id)) return;
+    if (!visibleChips.some((c) => c.id === id)) return;
     // Wait a frame for layout + image loads
     const raf = requestAnimationFrame(() => {
       setActiveId(id);
       scrollToSection(id, 'auto');
     });
     return () => cancelAnimationFrame(raf);
-  }, [hash, scrollToSection]);
+  }, [hash, scrollToSection, visibleChips]);
 
   // Scroll spy — find the last section whose top has passed under the sticky
   // filter. Runs on every scroll, throttled by rAF.
@@ -175,8 +189,10 @@ export function ExplorePage() {
     const compute = () => {
       const filterBottom = filterRef.current?.getBoundingClientRect().bottom ?? 180;
       const threshold = filterBottom + SCROLL_BREATHING + 4;
-      let candidate: ChipId = VISIBLE_CHIPS[0].id;
-      for (const chip of VISIBLE_CHIPS) {
+      // Empty until the catalog resolves — unlike the old hardcoded
+            // VISIBLE_CHIPS, which always had a first element.
+            let candidate: ChipId = visibleChips[0]?.id ?? '';
+      for (const chip of visibleChips) {
         const el = sectionRefs.current[chip.id];
         if (!el) continue;
         const top = el.getBoundingClientRect().top;
@@ -201,7 +217,7 @@ export function ExplorePage() {
       window.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [visibleChips]);
 
   const handleChipChange = useCallback(
     (id: ChipId) => {
@@ -272,7 +288,7 @@ export function ExplorePage() {
         {/* Chip row hides while searching to keep the focus on results */}
         {!isSearching && (
           <RitualChipRow
-            chips={VISIBLE_CHIPS}
+            chips={visibleChips}
             activeId={activeId}
             onChange={handleChipChange}
             variant="light"
@@ -312,8 +328,14 @@ export function ExplorePage() {
       {/* ───────── Every ritual, in chip order ───────── */}
       {(() => {
         let totalMatches = 0;
-        const sections = rituals.map((ritual) => {
-          const base = getServicesForRitual(ritual.id, audience);
+        const rendered = sections.map((section) => {
+          const base = section.services.filter(
+            (s) =>
+              !s.isAddon &&
+              (audience === 'unisex' ||
+                s.audience === audience ||
+                s.audience === 'unisex'),
+          );
           const services = isSearching
             ? base.filter((s) => matchesQuery(s.name) || matchesQuery(s.description))
             : base;
@@ -321,23 +343,22 @@ export function ExplorePage() {
           if (isSearching && services.length === 0) return null;
           return (
             <section
-              key={ritual.id}
-              ref={setSectionRef(ritual.id)}
-              id={ritual.id}
+              key={section.id}
+              ref={setSectionRef(section.id)}
+              id={section.id}
               className="px-6 lg:px-16 pt-4 pb-14 border-t border-black/5"
               style={{ scrollMarginTop: 'calc(var(--explore-filter-h, 180px) + 12px)' }}
             >
               <div className="mx-auto max-w-lg pt-8">
                 <div className="mb-6 space-y-2">
                   <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold">
-                    {ritual.tagline}
+                    {section.tagline || section.shortName}
                   </p>
                   <h2 className="font-serif text-3xl lg:text-4xl text-text-primary leading-[1.05]">
-                    <span className="italic text-text-primary/85">{ritual.title}</span>{' '}
-                    {ritual.titleItalic}
+                    <span className="italic text-text-primary/85">{section.name}</span>
                   </h2>
                   <p className="text-text-secondary text-sm lg:text-base leading-6 max-w-prose">
-                    {ritual.description}
+                    {section.description}
                   </p>
                 </div>
                 <div className="space-y-4">
@@ -366,7 +387,7 @@ export function ExplorePage() {
                 </div>
               </div>
             )}
-            {sections}
+            {rendered}
           </>
         );
       })()}

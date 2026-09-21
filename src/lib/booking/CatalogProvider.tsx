@@ -4,12 +4,13 @@
  *
  * Design notes:
  *   - The shape returned by useCatalog() mirrors what catalog.ts exported
- *     before the migration: `services`, `rituals`, `getService(id)`,
- *     `getRitual(id)`, etc. Consumer call sites stay almost identical —
- *     they just destructure from the hook instead of importing directly.
- *   - Therapists, packages, and journey totals remain hardcoded (no
- *     backend tables for those in Phase 1). They're surfaced unchanged
- *     through the hook so consumers don't need two imports.
+ *     before the migration, minus the retired ritual helpers: `services`,
+ *     `sections`, `getService(id)`, `getSectionById(id)`. Consumers
+ *     destructure from the hook instead of importing directly.
+ *   - Therapists remain hardcoded (the roster is empty). Packages and their
+ *     totals come from the backend since Phase 6.6 — `packages` / `journeys`
+ *     are the same API-derived list under two names, and getJourneyTotals
+ *     copies the server's derived pricing rather than recomputing it.
  *   - The provider also exposes the raw `channelTree` from the API so the
  *     landing page can render coming-soon / not-launched channels straight
  *     from backend metadata without going through the adapter.
@@ -28,16 +29,18 @@ import {
 import { fetchServices, type ServicesResponse } from '../api/services';
 import { ApiError, NetworkError } from '../api/errors';
 import {
-  HARDCODED_PACKAGES,
   HARDCODED_THERAPISTS,
-  getFrequentlyAddedSuggestions as legacyFrequentlyAdded,
-  getJourneyTotals as legacyJourneyTotals,
   type JourneyTotals,
 } from './catalog';
-import { adaptCatalog, EMPTY_CATALOG, type AdaptedCatalog } from './catalogAdapter';
+import {
+  adaptCatalog,
+  EMPTY_CATALOG,
+  type AdaptedCatalog,
+  type CatalogSection,
+} from './catalogAdapter';
+import type { ApiLocation } from '../api/services';
 import type {
   Package,
-  Ritual,
   Service,
   ServiceAudience,
   Therapist,
@@ -51,22 +54,43 @@ export interface CatalogContextValue {
 
   // Bookable surface — driven by the API.
   services: Service[];
-  rituals: Ritual[];
 
-  // Hardcoded surface — unchanged from Phase 1 catalog.
+  // Therapists are still hardcoded (the roster is empty). Packages come from
+  // the backend since Phase 6.6; `journeys` is the same list under its
+  // storytelling name and is kept so existing call sites did not move.
   therapists: Therapist[];
   packages: Package[];
   journeys: Package[];
 
-  // Helpers (same signatures as the old catalog.ts exports).
+  /**
+   * The backend hierarchy — sub-categories in `sort_order`, each with its own
+   * copy, imagery, icon key, FAQs, location and status. Section-rendering code
+   * reads THIS; it must not keep its own list of what sections exist.
+   */
+  sections: CatalogSection[];
+  /**
+   * Sections deliverable at the given location, in backend order.
+   * `coming_soon` sections are included — they render as placeholders — so
+   * callers filter on `status`, not by checking whether `services` is empty.
+   */
+  getSections: (location: ApiLocation, audience?: ServiceAudience) => CatalogSection[];
+  /** Resolve a section by its id (`Service.categoryId`) or by its anchor slug. */
+  getSectionById: (id: string | undefined) => CatalogSection | undefined;
+  /** Services in a section, minus add-ons, filtered by the audience toggle. */
+  getSectionServices: (sectionId: string, audience?: ServiceAudience) => Service[];
+
   getService: (id: string) => Service | undefined;
-  getRitual: (id: string) => Ritual | undefined;
   getTherapist: (id: string) => Therapist | undefined;
-  getTherapistsForRitual: (ritualId: string) => Therapist[];
-  getServicesForRitual: (ritualId: string, audience?: ServiceAudience) => Service[];
+  /** Therapists covering a sub-category. The roster is empty, so always []. */
+  getTherapistsForSection: (sectionId: string) => Therapist[];
   getAtHomeServices: (audience?: ServiceAudience) => Service[];
   getAddOnsForService: (service: Service) => Service[];
-  getPackagesForRitual: (ritualId: string) => Package[];
+  /**
+   * Add-ons offered by anything currently in the cart, minus what is already
+   * there. Driven by `addon_groups` on the backend rows — the previous version
+   * hardcoded "any somatic-recovery massage unlocks every add-on".
+   */
+  getAddOnSuggestions: (cartServiceIds: string[]) => Service[];
   getJourney: (id: string) => Package | undefined;
   getFrequentlyAddedSuggestions: (cartServiceIds: string[], limit?: number) => Service[];
   getJourneyTotals: (journey: Package) => JourneyTotals;
@@ -141,34 +165,65 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CatalogContextValue>(() => {
     const { catalog, channelTree, status, error } = state;
-    const { services, rituals } = catalog;
+    const { services, sections, packages } = catalog;
 
     const getService = (id: string) => services.find((s) => s.id === id);
-    const getRitual = (id: string) => rituals.find((r) => r.id === id);
     const getTherapist = (id: string) =>
       HARDCODED_THERAPISTS.find((t) => t.id === id);
-    const getTherapistsForRitual = (ritualId: string) =>
-      HARDCODED_THERAPISTS.filter((t) => t.ritualIds.includes(ritualId as never));
+    const getTherapistsForSection = (sectionId: string) =>
+      HARDCODED_THERAPISTS.filter((t) => t.categoryIds.includes(sectionId));
 
-    const getServicesForRitual = (
-      ritualId: string,
+    // Accepts an id or an anchor slug so `/explore#the-atelier` and
+    // `Service.categoryId` both resolve through one lookup.
+    const getSectionById = (id: string | undefined) =>
+      id ? sections.find((sec) => sec.id === id || sec.slug === id) : undefined;
+
+    const getSectionServices = (
+      sectionId: string,
       audience?: ServiceAudience,
-    ): Service[] =>
-      services.filter((s) => {
-        if (s.isAddon) return false; // add-ons never appear as standalone cards
-        if (s.ritualId !== ritualId) return false;
-        if (!audience || audience === 'unisex') return true;
-        return s.audience === audience || s.audience === 'unisex';
-      });
+    ): Service[] => {
+      const sec = getSectionById(sectionId);
+      if (!sec) return [];
+      // Add-ons are never standalone cards; they attach inside a parent's sheet.
+      return sec.services.filter(
+        (s) => !s.isAddon && matchesAudience(s, audience),
+      );
+    };
 
+    /** Does this service pass the Ladies/Gentlemen filter? */
+    const matchesAudience = (s: Service, audience?: ServiceAudience) =>
+      !audience || audience === 'unisex'
+        ? true
+        : s.audience === audience || s.audience === 'unisex';
+
+    const getSections = (
+      location: ApiLocation,
+      audience?: ServiceAudience,
+    ): CatalogSection[] =>
+      sections
+        // "both" satisfies either surface; a section is otherwise only shown
+        // where the backend says it can be delivered.
+        .filter((sec) => sec.location === location || sec.location === 'both')
+        .map((sec) => ({
+          ...sec,
+          services: sec.services.filter(
+            (s) => !s.isAddon && matchesAudience(s, audience),
+          ),
+        }));
+
+    /**
+     * Flat at-home service list.
+     *
+     * Delivery location is now a property of the SECTION, not the service —
+     * it was uniform across every service in a sub-category, so holding it
+     * per-row meant maintaining 43 values to express 8 facts. A `coming_soon`
+     * section contributes nothing here: its heading renders, but nothing in it
+     * is bookable yet.
+     */
     const getAtHomeServices = (audience?: ServiceAudience): Service[] =>
-      services.filter((s) => {
-        if (s.isAddon) return false; // add-ons never appear as standalone cards
-        const loc = s.location ?? 'salon';
-        if (loc === 'salon') return false;
-        if (!audience || audience === 'unisex') return true;
-        return s.audience === audience || s.audience === 'unisex';
-      });
+      getSections('home', audience)
+        .filter((sec) => sec.status === 'active')
+        .flatMap((sec) => sec.services);
 
     // Resolve the add-on Services a given service offers, from its addonGroups
     // slugs. Add-ons live in the full `services` list (only the grid getters
@@ -178,16 +233,26 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         .map((slug) => services.find((s) => s.id === slug))
         .filter((s): s is Service => !!s);
 
-    const getPackagesForRitual = (ritualId: string): Package[] => {
-      const idsForRitual = new Set(
-        services.filter((s) => s.ritualId === ritualId).map((s) => s.id),
-      );
-      return HARDCODED_PACKAGES.filter((p) =>
-        p.serviceIds.some((id) => idsForRitual.has(id)),
-      );
+    /**
+     * Union of the add-ons every cart line offers, minus anything already in
+     * the cart. Eligibility comes from each service's `addon_groups`, so a
+     * catalog change is enough to alter it — the previous implementation
+     * hardcoded "any somatic-recovery massage unlocks every add-on".
+     */
+    const getAddOnSuggestions = (cartServiceIds: string[]): Service[] => {
+      const inCart = new Set(cartServiceIds);
+      const out = new Map<string, Service>();
+      for (const id of cartServiceIds) {
+        const svc = getService(id);
+        if (!svc || svc.isAddon) continue;
+        for (const addOn of getAddOnsForService(svc)) {
+          if (!inCart.has(addOn.id)) out.set(addOn.id, addOn);
+        }
+      }
+      return [...out.values()];
     };
 
-    const getJourney = (id: string) => HARDCODED_PACKAGES.find((p) => p.id === id);
+    const getJourney = (id: string) => packages.find((p) => p.id === id);
 
     const getFrequentlyAddedSuggestions = (
       cartServiceIds: string[],
@@ -198,68 +263,62 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       // module-level `services` const, so we re-implement it here against
       // the API-derived list.
       if (cartServiceIds.length === 0) return [];
-      const cartRitualIds = new Set<string>();
+      const cartSectionIds = new Set<string>();
       const cartIdSet = new Set(cartServiceIds);
       for (const id of cartServiceIds) {
         const svc = getService(id);
-        if (svc) cartRitualIds.add(svc.ritualId);
+        if (svc) cartSectionIds.add(svc.categoryId);
       }
-      const sameRitual: Service[] = [];
-      const crossRitual: Service[] = [];
+      const sameSection: Service[] = [];
+      const crossSection: Service[] = [];
       for (const svc of services) {
         if (cartIdSet.has(svc.id)) continue;
-        if (cartRitualIds.has(svc.ritualId)) sameRitual.push(svc);
-        else crossRitual.push(svc);
+        if (cartSectionIds.has(svc.categoryId)) sameSection.push(svc);
+        else crossSection.push(svc);
       }
       const result: Service[] = [];
-      for (const svc of sameRitual) {
+      for (const svc of sameSection) {
         if (result.length >= limit) break;
         result.push(svc);
       }
-      for (const svc of crossRitual) {
+      for (const svc of crossSection) {
         if (result.length >= limit) break;
         result.push(svc);
       }
       return result;
     };
 
-    const getJourneyTotals = (journey: Package): JourneyTotals => {
-      const resolved = journey.serviceIds
-        .map((id) => getService(id))
-        .filter(Boolean) as Service[];
-      const totalDuration = resolved.reduce((s, svc) => s + svc.durationMin, 0);
-      const totalPriceFull = resolved.reduce((s, svc) => s + svc.price, 0);
-      const totalPriceDiscounted = Math.round(
-        totalPriceFull * (1 - journey.savings / 100),
-      );
-      return {
-        totalDuration,
-        totalPriceFull,
-        totalPriceDiscounted,
-        savingsAed: totalPriceFull - totalPriceDiscounted,
-      };
-    };
-    // legacy helpers kept available for non-React contexts (none today, but the
-    // import keeps them tree-shakeable).
-    void legacyFrequentlyAdded;
-    void legacyJourneyTotals;
+    /**
+     * Backend-authoritative. Every field is copied from the package row, not
+     * recomputed from its members: the server derives them against LIVE member
+     * prices on every read, and a second local computation would disagree the
+     * moment anything is repriced. The JourneyTotals shape is unchanged so no
+     * render site had to move.
+     */
+    const getJourneyTotals = (journey: Package): JourneyTotals => ({
+      totalDuration: journey.durationMin,
+      totalPriceFull: journey.originalPrice,
+      totalPriceDiscounted: journey.price,
+      savingsAed: journey.savingsAmount,
+    });
 
     return {
       status,
       error,
       services,
-      rituals,
+      sections,
+      getSections,
+      getSectionById,
+      getSectionServices,
       therapists: HARDCODED_THERAPISTS,
-      packages: HARDCODED_PACKAGES,
-      journeys: HARDCODED_PACKAGES,
+      packages,
+      journeys: packages,
       getService,
-      getRitual,
       getTherapist,
-      getTherapistsForRitual,
-      getServicesForRitual,
+      getTherapistsForSection,
       getAtHomeServices,
       getAddOnsForService,
-      getPackagesForRitual,
+      getAddOnSuggestions,
       getJourney,
       getFrequentlyAddedSuggestions,
       getJourneyTotals,

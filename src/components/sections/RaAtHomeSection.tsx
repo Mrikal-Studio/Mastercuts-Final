@@ -13,83 +13,66 @@ import { cn } from '@/lib/utils';
 const RA_EMBLEM = '/assets/Logo/ra-emblem.png';
 const WIPE_START = 0.5;
 
-type CategoryId = 'signature' | 'massage' | 'nails' | 'threading';
 type IconComponent = ComponentType<{ className?: string; strokeWidth?: number }>;
 
-interface Category {
-  id: CategoryId;
-  eyebrow: string;
-  title: string;
-  italic?: string;
-  description: string;
+/**
+ * The category list, its order, titles, copy and which are "coming soon" all
+ * come from `/services` — see
+ * docs/master-cuts/05-catalog-backend-driven-refactor.md.
+ *
+ * What stays here is the bespoke landing-page ARTWORK, which the backend does
+ * not model: `Department` carries a single `image_url`, while this section needs
+ * a distinct hero per audience. Keyed on the backend's `icon_key` (a stable,
+ * human-readable value already stored on each sub-category) rather than on a
+ * UUID, so the mapping stays readable and a newly created section degrades
+ * gracefully instead of rendering a broken hero.
+ *
+ * KNOWN GAP: making this fully backend-driven needs `image_url_gents` /
+ * `image_url_ladies` on Department. Until then, a section whose icon_key is not
+ * listed below is hidden from this landing section (it still appears on
+ * /at-home, which does not depend on bespoke art).
+ */
+interface SectionMedia {
   icon: IconComponent;
-  /** Image used when audience is 'gentlemen'. Empty string means category is
-   *  hidden for gentlemen. */
+  /** Empty string hides the category for that audience — the pre-existing rule. */
   imageGents: string;
-  /** Image used when audience is 'ladies' or 'unisex'. */
   imageLadies: string;
-  /**
-   * Returns true if a Service belongs in this category. Matches on `ritualId`
-   * (stable slug from the adapter) rather than `id`, because the bookable
-   * service id is now a backend UUID and no longer carries a category prefix.
-   */
-  matches: (service: { id: string; ritualId: string }) => boolean;
 }
 
-// NOTE: titles and tagline (eyebrow) here must stay in sync with
-// `pages/AtHomePage.tsx` GROUPS so both surfaces label categories
-// identically.
-const CATEGORIES: Category[] = [
-  {
-    id: 'signature',
-    eyebrow: 'Begin your Ra Experience',
-    title: 'Signature',
-    italic: 'Rituals',
-    description:
-      'A focused 45-minute introduction to the Ra approach — aromatherapy, deep tissue and warmed stones, choreographed for first-time guests.',
+const SECTION_MEDIA: Record<string, SectionMedia> = {
+  sun: {
     icon: Sun,
     imageGents: '/assets/Images/Ra%20at%20home.jpeg',
     imageLadies: '/assets/Images/Ra%20at%20home.jpeg',
-    matches: (s) => s.ritualId === 'signature-rituals',
   },
-  {
-    id: 'massage',
-    eyebrow: 'Wellness',
-    title: 'Body Rituals',
-    italic: 'Massages',
-    description:
-      'Signature, deep tissue, Balinese and Swedish — brought into your home.',
+  'hand-heart': {
     icon: HandHeart,
     imageGents: '/assets/New%20Images/Ra%20at%20home%20Gentlemen%20Body%20Ritual.jpg',
     imageLadies: '/assets/New%20Images/Ra%20at%20home%20Ladies%20Body%20Ritual.jpg',
-    matches: (s) => s.ritualId === 'somatic-recovery',
   },
-  {
-    id: 'nails',
-    eyebrow: 'Coming soon',
-    title: 'Hand & Feet',
-    italic: 'Rituals',
-    description:
-      'Manicure, pedicure and care rituals — launching ahead of full studio opening.',
+  'flower-2': {
     icon: Flower2,
     imageGents:
       '/assets/Images/young-hispanic-man-relaxed-having-manicure-session-beauty-center.jpg',
     imageLadies: '/assets/Images/manicure-process.jpg',
-    matches: (s) => s.ritualId === 'alchemic-aesthetics',
   },
-  {
-    id: 'threading',
-    eyebrow: 'Coming soon',
-    title: 'Threading',
-    italic: 'Rituals',
-    description:
-      'Precise brow, lip and full-face shaping — launching ahead of full studio opening.',
+  scissors: {
     icon: Scissors,
     imageGents: '/assets/New%20Images/Ra%20at%20home%20Gents%20Threading.jpg',
     imageLadies: '/assets/New%20Images/Ra%20at%20home%20Ladies%20Threading%20Ritual.jpg',
-    matches: (s) => s.ritualId === 'velvet-smooth',
   },
-];
+};
+
+/** A backend section joined to its local artwork, ready to render. */
+interface Category {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: IconComponent;
+  imageGents: string;
+  imageLadies: string;
+}
 
 function imageFor(cat: Category, audience: ServiceAudience): string {
   return audience === 'gentlemen' ? cat.imageGents : cat.imageLadies;
@@ -129,7 +112,6 @@ const CategoryChip = forwardRef<HTMLButtonElement, ChipProps>(function CategoryC
         )}
       >
         {category.title}
-        {category.italic ? <span className="italic"> {category.italic}</span> : null}
       </span>
     </button>
   );
@@ -139,32 +121,50 @@ export function RaAtHomeSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const [audience, setAudience] = useAudience();
-  const { getAtHomeServices } = useCatalog();
+  const { getAtHomeServices, getSections } = useCatalog();
   const reduceMotion = useReducedMotion();
 
   // Refs for the two horizontal chip rows + their per-chip buttons. Used to
   // center the active chip in view whenever the active id changes (scroll-spy
   // on desktop, tap on mobile).
   const desktopChipScrollRef = useRef<HTMLDivElement>(null);
-  const desktopChipRefs = useRef<Record<CategoryId, HTMLButtonElement | null>>(
+  const desktopChipRefs = useRef<Record<string, HTMLButtonElement | null>>(
     {} as never,
   );
   const mobileChipScrollRef = useRef<HTMLDivElement>(null);
-  const mobileChipRefs = useRef<Record<CategoryId, HTMLButtonElement | null>>(
+  const mobileChipRefs = useRef<Record<string, HTMLButtonElement | null>>(
     {} as never,
   );
 
-  // Categories whose audience-specific image exists. Threading has no
-  // gentlemen image / services, so it drops out for the 'gentlemen' audience.
-  const visibleCategories = useMemo(
+  // Backend sections joined to their local artwork. A section whose icon_key
+  // has no entry in SECTION_MEDIA is skipped rather than rendered without a
+  // hero — see the KNOWN GAP note above. The audience filter is the
+  // pre-existing rule: an empty image for that audience hides the category.
+  const visibleCategories = useMemo<Category[]>(
     () =>
-      CATEGORIES.filter((c) =>
-        audience === 'gentlemen' ? c.imageGents !== '' : c.imageLadies !== '',
-      ),
-    [audience],
+      getSections('home')
+        .map((sec) => {
+          const media = SECTION_MEDIA[sec.iconKey];
+          if (!media) return null;
+          return {
+            id: sec.id,
+            title: sec.name,
+            eyebrow:
+              sec.status === 'coming_soon'
+                ? 'Coming soon'
+                : sec.tagline || sec.shortName,
+            description: sec.description,
+            icon: media.icon,
+            imageGents: media.imageGents,
+            imageLadies: media.imageLadies,
+          };
+        })
+        .filter((c): c is Category => c !== null)
+        .filter((c) => (audience === 'gentlemen' ? c.imageGents !== '' : c.imageLadies !== '')),
+    [audience, getSections],
   );
 
-  const [mobileCategoryId, setMobileCategoryId] = useState<CategoryId>('signature');
+  const [mobileCategoryId, setMobileCategoryId] = useState<string>('');
 
   // Desktop scroll-driven wipe state
   const [currentService, setCurrentService] = useState(0);
@@ -185,7 +185,7 @@ export function RaAtHomeSection() {
   // If audience change removes the current mobile category, fall back to first.
   useEffect(() => {
     if (!visibleCategories.find((c) => c.id === mobileCategoryId)) {
-      setMobileCategoryId(visibleCategories[0]?.id ?? 'signature');
+      setMobileCategoryId(visibleCategories[0]?.id ?? '');
     }
   }, [visibleCategories, mobileCategoryId]);
 
@@ -225,7 +225,7 @@ export function RaAtHomeSection() {
   }, [visibleCategories.length]);
 
   const handleDesktopChipChange = useCallback(
-    (id: CategoryId) => {
+    (id: string) => {
       const idx = visibleCategories.findIndex((c) => c.id === id);
       if (idx < 0 || !sectionRef.current) return;
       const section = sectionRef.current;
@@ -236,11 +236,11 @@ export function RaAtHomeSection() {
     [visibleCategories],
   );
 
-  const handleMobileChipChange = useCallback((id: CategoryId) => {
+  const handleMobileChipChange = useCallback((id: string) => {
     setMobileCategoryId(id);
   }, []);
 
-  const activeDesktopId: CategoryId = visibleCategories[currentService]?.id ?? 'signature';
+  const activeDesktopId: string = visibleCategories[currentService]?.id ?? '';
 
   // Centers the active chip horizontally in its container. Manual math
   // (not scrollIntoView) so the page's vertical scroll cannot be disturbed —
@@ -272,19 +272,22 @@ export function RaAtHomeSection() {
     const clamped = Math.max(0, Math.min(target, max));
     container.scrollTo({ left: clamped, behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [mobileCategoryId, reduceMotion]);
+  // May be undefined on the first render, before the catalog resolves — there
+  // is no hardcoded category list to fall back to any more.
   const mobileCategory = useMemo(
     () =>
       visibleCategories.find((c) => c.id === mobileCategoryId) ??
-      visibleCategories[0] ??
-      CATEGORIES[0],
+      visibleCategories[0],
     [mobileCategoryId, visibleCategories],
   );
 
+  /**
+   * Membership is now the backend relationship (`Service.categoryId` ===
+   * sub-category id), not a `ritualId` predicate the frontend maintained.
+   */
   const servicesForCategory = useCallback(
-    (cat: Category) => {
-      const all = getAtHomeServices(audience);
-      return all.filter((s) => cat.matches(s));
-    },
+    (cat: Category) =>
+      getAtHomeServices(audience).filter((s) => s.categoryId === cat.id),
     [audience, getAtHomeServices],
   );
 
@@ -391,14 +394,6 @@ export function RaAtHomeSection() {
               >
                 <h2 className="font-serif text-6xl xl:text-7xl leading-[0.95] text-white">
                   {visibleCategories[currentService]?.title}
-                  {visibleCategories[currentService]?.italic && (
-                    <>
-                      {' '}
-                      <span className="italic text-white/90">
-                        {visibleCategories[currentService].italic}
-                      </span>
-                    </>
-                  )}
                 </h2>
                 <p className="mt-5 text-sm xl:text-base text-white/75 leading-relaxed">
                   {visibleCategories[currentService]?.description}
@@ -505,8 +500,12 @@ export function RaAtHomeSection() {
           </div>
         </div>
 
+        {/* The catalog is fetched, so there is no category on the first render
+            and none at all if the request fails. Previously this fell back to a
+            hardcoded CATEGORIES[0], which always existed. */}
         <div className="px-6 pt-8">
           <AnimatePresence mode="wait">
+            {mobileCategory && (
             <motion.div
               key={mobileCategory.id + ':' + audience}
               initial={{ opacity: 0, y: 16 }}
@@ -534,6 +533,7 @@ export function RaAtHomeSection() {
                 })()}
               </div>
             </motion.div>
+            )}
           </AnimatePresence>
         </div>
 

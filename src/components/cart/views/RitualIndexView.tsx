@@ -13,11 +13,12 @@ interface Props {
 export function RitualIndexView({ onClose, canGoBack, onBack }: Props) {
   const { closeAll } = useCart();
   const navigate = useNavigate();
-  const { rituals, journeys, getServicesForRitual } = useCatalog();
+  const { sections, journeys } = useCatalog();
 
-  const goToRitual = (ritualId: string) => {
+  // Anchor on the readable slug rather than the sub-category UUID.
+  const goToSection = (slug: string) => {
     closeAll();
-    setTimeout(() => navigate(`/explore#${ritualId}`), 220);
+    setTimeout(() => navigate(`/explore#${slug}`), 220);
   };
 
   return (
@@ -56,10 +57,10 @@ export function RitualIndexView({ onClose, canGoBack, onBack }: Props) {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-6">
-        {/* Journey entry point — hand-assembled experiences above à la carte rituals */}
+        {/* Journey entry point — hand-assembled experiences above the à la carte menu */}
         <button
           type="button"
-          onClick={() => goToRitual('curated-journeys')}
+          onClick={() => goToSection('curated-journeys')}
           className="group w-full mt-5 mb-2 flex items-center gap-4 p-4 rounded-2xl bg-bg-dark text-white text-left hover:bg-bg-darker transition-colors"
         >
           <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -81,24 +82,24 @@ export function RitualIndexView({ onClose, canGoBack, onBack }: Props) {
         </p>
 
         <ul className="divide-y divide-black/10">
-          {rituals.map((ritual) => {
-            const count = getServicesForRitual(ritual.id).length;
+          {sections.map((section) => {
+            const count = section.services.filter((sv) => !sv.isAddon).length;
             return (
-              <li key={ritual.id}>
+              <li key={section.id}>
                 <button
                   type="button"
-                  onClick={() => goToRitual(ritual.id)}
+                  onClick={() => goToSection(section.slug)}
                   className="group w-full flex items-center gap-4 py-5 text-left"
                 >
                   <div className="w-20 h-24 flex-shrink-0 overflow-hidden bg-black/5">
-                    <img src={ritual.image} alt={ritual.titleItalic} className="w-full h-full object-cover" />
+                    <img src={section.imageUrl} alt={section.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-serif text-xl text-text-primary leading-tight">
-                      {ritual.title} <span className="italic">{ritual.titleItalic}</span>
+                      {section.name}
                     </p>
                     <p className="text-[11px] uppercase tracking-wider text-text-secondary mt-1">
-                      {ritual.tagline}
+                      {section.tagline || section.shortName}
                     </p>
                     <p className="text-xs text-text-secondary mt-2">
                       {count} services

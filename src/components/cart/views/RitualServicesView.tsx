@@ -1,26 +1,25 @@
 import { ArrowLeft, X } from 'lucide-react';
 import { formatAed, formatDuration } from '../CartProvider';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
-import type { RitualId } from '@/lib/booking/types';
 import { pickServiceImage } from '@/lib/booking/types';
 import { useAudience } from '@/components/services/useAudience';
 import { AddToCartButton } from '../AddToCartButton';
 import { DrawerStickyFooter } from './DrawerStickyFooter';
 
 interface Props {
-  ritualId: RitualId;
+  sectionId: string;
   onClose: () => void;
   onBack: () => void;
 }
 
-export function RitualServicesView({ ritualId, onClose, onBack }: Props) {
-  const { getRitual, getServicesForRitual, getTherapistsForRitual } = useCatalog();
-  const ritual = getRitual(ritualId);
-  const services = getServicesForRitual(ritualId);
-  const therapistCount = getTherapistsForRitual(ritualId).length;
+export function RitualServicesView({ sectionId, onClose, onBack }: Props) {
+  const { getSectionById, getSectionServices, getTherapistsForSection } = useCatalog();
+  const section = getSectionById(sectionId);
+  const services = getSectionServices(sectionId);
+  const therapistCount = getTherapistsForSection(sectionId).length;
   const [audience] = useAudience();
 
-  if (!ritual) return null;
+  if (!section) return null;
 
   return (
     <div className="flex flex-col h-full">
@@ -37,10 +36,10 @@ export function RitualServicesView({ ritualId, onClose, onBack }: Props) {
           </button>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.2em] text-text-secondary mb-1">
-              {ritual.tagline}
+              {section.tagline || section.shortName}
             </p>
             <h2 className="font-serif text-2xl text-text-primary leading-none truncate">
-              {ritual.title} <span className="italic">{ritual.titleItalic}</span>
+              {section.name}
             </h2>
           </div>
         </div>
@@ -58,7 +57,7 @@ export function RitualServicesView({ ritualId, onClose, onBack }: Props) {
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 pt-5 pb-3">
           <p className="text-sm text-text-secondary leading-relaxed">
-            {ritual.description}
+            {section.description}
           </p>
           <p className="text-[11px] uppercase tracking-wider text-text-secondary mt-3">
             {services.length} services · {therapistCount} {therapistCount === 1 ? 'specialist' : 'specialists'}

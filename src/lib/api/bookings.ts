@@ -21,6 +21,9 @@ export interface BookingServiceSnapshot {
   department_id?: string;
   duration_min: number;
   price: number;
+  // Which duration/finish option was booked, e.g. "Classic Nail Polish" vs
+  // "Gel Polish". Absent for services with no variant grouping.
+  variant_label?: string;
   // Persisted add-on linkage (backend annotates from service_links). Present
   // only on add-on lines; `parent_service_id` is the booked id of the service
   // it was attached to, so booking history can render the grouping.
@@ -70,6 +73,19 @@ export interface ServiceLink {
   parent_service_id: string;
 }
 
+/**
+ * How many units of a unit-priced service the customer chose (e.g. 5 nails).
+ *
+ * A side-channel rather than repeating the id in `service_ids`: repetition
+ * already means "book this service N separate times" (N durations, N bill
+ * lines), which is not what 5 nails in one sitting is. Only valid for services
+ * whose `pricing_unit` is not "service" — the backend rejects it otherwise.
+ */
+export interface ServiceUnits {
+  service_id: string;
+  units: number;
+}
+
 export interface CreateBookingPayload {
   service_ids: string[];
   date: string;
@@ -84,6 +100,9 @@ export interface CreateBookingPayload {
   // (add-ons included); this only tells the backend which are add-ons and their
   // parent, so the linkage persists in the booking record.
   service_links?: ServiceLink[];
+  // Optional unit quantities for unit-priced services. Omitted entirely when
+  // the cart holds none, so an ordinary booking's payload is unchanged.
+  service_units?: ServiceUnits[];
 }
 
 export function createBooking(

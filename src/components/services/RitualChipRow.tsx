@@ -1,7 +1,6 @@
 import { useEffect, useRef, type ComponentType } from 'react';
 import {
   Scissors,
-  Sun,
   Sunrise,
   Flower2,
   Sparkles,
@@ -10,47 +9,46 @@ import {
   Wand2,
   Gift,
 } from 'lucide-react';
-import type { RitualId } from '@/lib/booking/types';
-
-export type ChipId = RitualId | 'curated-journeys';
+/**
+ * A chip id is a backend sub-category id, or the 'curated-journeys' sentinel
+ * for the packages entry point. An open string rather than a union: which
+ * sections exist is a backend fact now.
+ */
+export type ChipId = string;
 
 export interface RitualChip {
   id: ChipId;
   title: string;
   subtitle: string;
+  /** Backend icon_key; unknown values fall back to a default glyph. */
+  iconKey?: string;
 }
 
-// Order matches the `rituals` array in catalog.ts — keeping them in sync
-// means the desktop scroll-wipe and the chip row advance in lockstep, leffvt-to-right.
-export const HOME_CHIPS: RitualChip[] = [
-  { id: 'curated-journeys', title: 'Curated Journeys', subtitle: 'Packages' },
-  { id: 'atelier', title: 'The Atelier', subtitle: 'Hair' },
-  { id: 'alchemic-aesthetics', title: 'Alchemic Aesthetics', subtitle: 'Nails' },
-  { id: 'somatic-recovery', title: 'Somatic Recovery', subtitle: 'Massage' },
-  { id: 'solar-vitality', title: 'Solar Vitality', subtitle: 'Skin & Facial' },
-  { id: 'velvet-smooth', title: 'Velvet Smooth', subtitle: 'Waxing' },
-  { id: 'body-renewal', title: 'Body Renewal', subtitle: 'Makeup' },
-  { id: 'longevity-lab', title: 'Longevity Lab', subtitle: 'Wellness' },
-];
+// `HOME_CHIPS` is gone — it mirrored catalog.ts's rituals[] by hand and had to
+// be kept in sync with it. Callers build chips from `useCatalog().sections`,
+// which is ordered by the backend `sort_order`.
 
 type IconComponent = ComponentType<{ className?: string; strokeWidth?: number }>;
 
-const CHIP_ICONS: Record<ChipId, IconComponent> = {
-  'curated-journeys': Gift,
-  atelier: Scissors,
-  'solar-vitality': Sun,
-  'somatic-recovery': Flower2,
-  'alchemic-aesthetics': Sparkles,
-  'longevity-lab': Activity,
-  'velvet-smooth': Feather,
-  'body-renewal': Wand2,
-  // Not currently rendered in HOME_CHIPS (signature-rituals is at-home only),
-  // but required to satisfy the Record<ChipId, IconComponent> constraint.
-  'signature-rituals': Sunrise,
+/**
+ * Backend `icon_key` → component. The key is catalog configuration; the
+ * component cannot live in DynamoDB, so the mapping stays here. Unknown keys
+ * (including "") fall back to Sparkles, so a section added from the admin
+ * portal renders a chip rather than a hole.
+ */
+const CHIP_ICONS: Record<string, IconComponent> = {
+  sun: Sunrise,
+  'hand-heart': Flower2,
+  'flower-2': Sparkles,
+  scissors: Scissors,
+  gift: Gift,
+  activity: Activity,
+  feather: Feather,
+  wand: Wand2,
 };
 
 interface RitualChipRowProps {
-  chips?: RitualChip[];
+  chips: RitualChip[];
   activeId: ChipId;
   onChange: (id: ChipId) => void;
   variant?: 'dark' | 'light';
@@ -58,7 +56,7 @@ interface RitualChipRowProps {
 }
 
 export function RitualChipRow({
-  chips = HOME_CHIPS,
+  chips,
   activeId,
   onChange,
   variant = 'dark',
@@ -88,7 +86,7 @@ export function RitualChipRow({
       <div className={`flex gap-2 ${className}`}>
 
         {chips.map((chip) => {
-          const Icon = CHIP_ICONS[chip.id];
+          const Icon = CHIP_ICONS[chip.iconKey ?? ""] ?? Sparkles;
           const active = chip.id === activeId;
 
           // Dark section: inactive chips recede on bg-dark (translucent surface,

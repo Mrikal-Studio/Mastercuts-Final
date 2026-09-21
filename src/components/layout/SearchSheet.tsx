@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search as SearchIcon,
@@ -9,9 +9,18 @@ import {
   HandHeart,
   Flower2,
   Scissors,
+  Navigation as NavigateIcon,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { useCart, formatAed, formatDuration } from '@/components/cart/CartProvider';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
+import {
+  STUDIO_ADDRESS,
+  STUDIO_PHONE_E164,
+  STUDIO_WHATSAPP,
+} from '@/lib/contact';
 
 const QUERY_DEBOUNCE_MS = 120;
 
@@ -83,6 +92,7 @@ function HighlightUntyped({ text, query }: { text: string; query: string }) {
 
 export function SearchSheet() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isSearchOpen, closeSearch, openServiceDetail } = useCart();
   const { getAtHomeServices } = useCatalog();
   const [query, setQuery] = useState('');
@@ -155,16 +165,31 @@ export function SearchSheet() {
 
   const hasAny = categoryResults.length > 0 || serviceResults.length > 0;
 
-  const handleOpenService = (serviceId: string, ritualId: string) => {
+  const handleOpenService = (serviceId: string) => {
     closeSearch();
     // Defer so the sheet's exit animation can begin before the service
     // detail sheet opens — avoids two stacked transitions.
-    window.setTimeout(() => openServiceDetail(serviceId, ritualId as never), 180);
+    window.setTimeout(() => openServiceDetail(serviceId), 180);
   };
 
   const handleOpenCategory = (path: string) => {
     closeSearch();
     window.setTimeout(() => navigate(path), 180);
+  };
+
+  // The sheet covers the page, so the address card can only be reached by
+  // closing first. Same destination and fallback as the header's control.
+  const handleGoToContact = () => {
+    closeSearch();
+    window.setTimeout(() => {
+      if (location.pathname === '/') {
+        document
+          .getElementById('contact')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        navigate('/#contact');
+      }
+    }, 180);
   };
 
   return (
@@ -176,13 +201,15 @@ export function SearchSheet() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="fixed inset-0 z-[80] bg-bg-primary overflow-y-auto"
+          // Column layout so the contact bar stays pinned to the bottom edge
+          // and the results scroll between it and the search field.
+          className="fixed inset-0 z-[80] bg-bg-primary flex flex-col"
           role="dialog"
           aria-modal="true"
           aria-label="Search rituals"
         >
           {/* Top bar */}
-          <div className="sticky top-0 z-10 bg-bg-primary border-b border-black/10">
+          <div className="flex-shrink-0 bg-bg-primary border-b border-black/10">
             <div
               className="flex items-center gap-3 px-6 py-4 max-w-3xl mx-auto"
               style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
@@ -221,7 +248,8 @@ export function SearchSheet() {
             </div>
           </div>
 
-          {/* Body */}
+          {/* Body — the only scrolling region */}
+          <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-8 max-w-3xl mx-auto">
             {!debounced ? (
               <div className="py-10 text-center">
@@ -287,7 +315,7 @@ export function SearchSheet() {
                         <li key={s.id}>
                           <button
                             type="button"
-                            onClick={() => handleOpenService(s.id, s.ritualId)}
+                            onClick={() => handleOpenService(s.id)}
                             className="group w-full flex items-center gap-4 py-3.5 text-left"
                           >
                             <img
@@ -314,6 +342,70 @@ export function SearchSheet() {
                 )}
               </div>
             )}
+          </div>
+          </div>
+
+          {/* Visit-the-studio card — pinned to the bottom edge. A compact
+              echo of the footer's contact card: dark on the ivory sheet so it
+              reads as a distinct surface, gold eyebrow, serif place name, and
+              the three things someone actually wants from here — call, chat,
+              or the map. */}
+          <div
+            className="flex-shrink-0 px-4 pt-2 sm:px-6"
+            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          >
+            <div className="max-w-3xl mx-auto rounded-2xl bg-bg-dark text-white overflow-hidden shadow-xl shadow-black/10">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-5 sm:px-6 sm:py-5">
+
+                {/* Identity — who and where */}
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <span className="shrink-0 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-accent-gold">
+                    <MapPin className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-accent-gold mb-1">
+                      Visit the studio
+                    </p>
+                    <p className="font-serif text-lg leading-tight text-white">
+                      Downtown <span className="italic">Dubai</span>
+                    </p>
+                    <p className="text-xs text-white/50 leading-snug mt-0.5 line-clamp-2">
+                      {STUDIO_ADDRESS}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Actions — chips fill the row on mobile, hug right on desktop */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`tel:${STUDIO_PHONE_E164}`}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-full border border-white/15 px-3 sm:px-4 py-2.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Call
+                  </a>
+                  <a
+                    href={`https://wa.me/${STUDIO_WHATSAPP}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-full border border-white/15 px-3 sm:px-4 py-2.5 text-xs text-white/80 hover:bg-white/10 hover:text-white transition-colors whitespace-nowrap"
+                  >
+                    <WhatsAppIcon className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleGoToContact}
+                    title="View the studio address"
+                    className="group flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-full bg-white px-3 sm:px-4 py-2.5 text-xs font-medium text-text-primary hover:bg-white/90 transition-colors whitespace-nowrap"
+                  >
+                    <NavigateIcon className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-y-0.5" />
+                    Map
+                    <span className="hidden sm:inline"> &amp; details</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
       )}

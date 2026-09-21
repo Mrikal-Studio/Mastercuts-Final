@@ -24,7 +24,7 @@ export function RitualServiceRow({ service, index, inView }: Props) {
   const displayDuration = cartItem?.durationMin ?? service.durationMin;
   const displayPrice = cartItem?.price ?? service.price;
 
-  const openDetail = () => openServiceDetail(service.id, service.ritualId);
+  const openDetail = () => openServiceDetail(service.id);
 
   const priceLabel = hasVariants
     ? `from ${formatAed(variants[0].price)}`
@@ -62,7 +62,7 @@ export function RitualServiceRow({ service, index, inView }: Props) {
           )}
           {hasVariants && (
             <span className="text-[10px] uppercase tracking-[0.18em] text-text-secondary border border-black/15 rounded-full px-2 py-0.5">
-              {variants.length} durations
+              {variants.length} options
             </span>
           )}
         </div>

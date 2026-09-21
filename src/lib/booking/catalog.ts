@@ -1,250 +1,18 @@
-import type { Ritual, Service, ServiceAudience, Therapist, Package } from './types';
+import type { FallbackService, Therapist } from './types';
 
 // HARDCODED_* aliases (declared at the bottom of this file) expose the same
 // arrays under semantic names for the API-backed catalog adapter. The legacy
 // `services` / `rituals` / helper exports remain in place as fallbacks and
 // for the parts of the app that haven't been migrated to useCatalog().
-export const rituals: Ritual[] = [
-  {
-    id: 'atelier',
-    title: 'The',
-    titleItalic: 'Atelier',
-    tagline: 'Hair',
-    description:
-      'Precision cuts, colour artistry, and transformative styling rituals for every texture and story.',
-    longDescription:
-      "The Atelier is where precision meets artistry. Every cut begins with study — of your face, your texture, the way light lives in your hair — and unfolds through slow, deliberate work at the chair. Our colourists are trained in the Parisian and Japanese traditions, where restraint and dimension matter more than dramatic change.\n\nWhether you're here for a signature cut, a subtle shift in colour, or a full transformation before your wedding day, the process remains unhurried. You're invited to arrive twenty minutes early for tea in the salon's library before your appointment begins.",
-    philosophy: 'Slow craft, considered hands.',
-    faqs: [
-      {
-        q: 'How should I arrive for a colour appointment?',
-        a: 'We ask that you come with dry, unwashed hair. Any recent chemical treatments, gloss, or at-home colour should be mentioned at booking so we can plan accordingly.',
-      },
-      {
-        q: 'How often should I return for a cut?',
-        a: 'For most clients, every six to eight weeks preserves the shape. Precision bobs and fringes benefit from trims every four weeks.',
-      },
-      {
-        q: 'Do you offer consultations before booking?',
-        a: 'Yes — complimentary fifteen-minute consultations are available for colour corrections, bridal styling, and any first visit to the Atelier.',
-      },
-      {
-        q: 'Can I bring reference images?',
-        a: 'Absolutely. References help the conversation, though your therapist will guide you toward what your hair and face shape will hold best.',
-      },
-    ],
-    image: '/assets/Images/H-03.png',
-  },
-  {
-    id: 'alchemic-aesthetics',
-    title: 'Alchemic',
-    titleItalic: 'Aesthetics',
-    tagline: 'Nails',
-    description:
-      'Nail artistry elevated to ceremony — each visit a meditation in precision and colour.',
-    longDescription:
-      "Alchemic Aesthetics treats nail work as ceremony — small, precise, repeated gestures that add up to something lasting. Our nail rituals begin with attention to the cuticle, the nail bed, the shape of the hand; only then does colour enter the conversation.\n\nWhether it's a single glossed coat or architectural nail art that takes ninety minutes, the care is the same. Tools are sterilised between every client. Products are selected for health as much as for pigment.",
-    philosophy: 'Small gestures, lasting craft.',
-    faqs: [
-      {
-        q: 'How do you remove gel polish safely?',
-        a: 'We use gentle soak-off — no drilling at the nail plate. Expect ten extra minutes if you arrive with previous gel.',
-      },
-      {
-        q: 'Are your products free of harsh chemicals?',
-        a: 'Our polishes are free of the common ten plus formaldehyde and toluene. We can share the full list on request.',
-      },
-      {
-        q: 'How long does gel last?',
-        a: 'Two to three weeks on average. Growth, not chipping, is usually the reason to return.',
-      },
-      {
-        q: 'Can I bring reference art?',
-        a: 'Please — references help, and our artists can adapt a reference to suit your nail length and shape.',
-      },
-    ],
-    image: '/assets/Images/H-06.png',
-  },
-  {
-    id: 'somatic-recovery',
-    title: 'Somatic',
-    titleItalic: 'Recovery',
-    tagline: 'Massage & Body',
-    description:
-      'Deep tissue restoration, somatic release, and full-body renewal guided by trained therapists.',
-    longDescription:
-      'Somatic Recovery is rooted in a simple observation: the nervous system holds as much as the body does. Our therapists are trained across modalities — Swedish, deep tissue, lymphatic drainage, and somatic release — and they read what your body brings into the room.\n\nThe first five minutes are always the same: a long exhale, grounded presence, the sense that you are safe to let go. From there, pressure is negotiated, not assumed. Some visits are restorative; some are the kind that ask more of you. Both are welcome here.',
-    philosophy: 'Return to the body, slowly.',
-    faqs: [
-      {
-        q: "What if I'm in real pain, not just tight?",
-        a: "Tell us at booking — we'll allocate a therapist trained in the appropriate modality and adjust the duration if needed. For clinical pain, we can recommend a physician first.",
-      },
-      {
-        q: 'How hard should pressure be?',
-        a: 'As hard as you ask. Feedback during the session is welcome — this is collaborative.',
-      },
-      {
-        q: 'What about after the session?',
-        a: 'Drink water. Rest if you can. Avoid strenuous exercise for a few hours.',
-      },
-    ],
-    image: '/assets/Images/H-05.png',
-  },
-  {
-    id: 'signature-rituals',
-    title: 'Signature',
-    titleItalic: 'Rituals',
-    tagline: 'Begin your Ra Experience',
-    description:
-      'A curated introduction to the essence of Ra — aromatherapy, focused deep tissue and warmed stones, choreographed into a single mindful experience.',
-    longDescription:
-      'Signature Rituals are the entry point to Ra — short, considered experiences designed to introduce the studio rather than overwhelm it. Each ritual draws from across our wider practice (somatic, sensory, restorative) and edits it down to a focused 45 minutes.\n\nThe brief is the same as the rest of our work: unhurried hands, considered pressure, and an environment that asks nothing of you but presence. Whether this is the first time you are meeting Ra, or you simply want a quieter window in the week, this is where to begin.',
-    philosophy: 'Begin where the body asks you to.',
-    faqs: [
-      {
-        q: 'Is the Signature Introduction suitable for a first-time massage?',
-        a: 'Yes — it is designed for first visits. Pressure is negotiated at the start, and the choreography is restorative rather than clinical.',
-      },
-      {
-        q: 'How is this different from the Ra Signature Massage?',
-        a: 'The Signature Massage is a full 90-minute experience across multiple modalities. The Introduction is a shorter, 45-minute edit — built to give you a sense of the Ra approach before committing to a longer ritual.',
-      },
-      {
-        q: 'Can I add a Hot Stone Enhancement to the Introduction?',
-        a: 'Warmed stones are already part of the choreography. No add-on needed.',
-      },
-    ],
-    image: '/assets/Service category images/Signature Ritual Banner .jpg',
-  },
-  {
-    id: 'solar-vitality',
-    title: 'Solar',
-    titleItalic: 'Vitality',
-    tagline: 'Skin & Facial',
-    description:
-      'Luminous skin journeys that marry ancient botanical wisdom with modern dermal science.',
-    longDescription:
-      'Solar Vitality draws its name from the warmth that radiant skin carries — the kind that starts from within and rises through the surface. Our facial protocols marry two lineages: the botanical wisdom of the Gulf and the Mediterranean, where frankincense, rose, and neroli have tended skin for millennia; and the clinical precision of modern dermal science.\n\nEvery treatment begins with skin analysis under professional light and a conversation about what your skin is being asked to do this season. Expect hands-on massage, quiet technology where it helps, and time — the unhurried kind that lets ingredients actually work.',
-    philosophy: 'Light is the first medicine.',
-    faqs: [
-      {
-        q: 'Is this safe for sensitive or reactive skin?',
-        a: 'Yes. We adapt every protocol to your barrier on the day. Let your therapist know about any recent reactions, retinoids, or prescription actives.',
-      },
-      {
-        q: 'Can I have a facial while pregnant?',
-        a: 'Most of our facials are pregnancy-safe. We avoid retinoids, salicylic acid, and deep lymphatic work in the first trimester. Mention your stage at booking.',
-      },
-      {
-        q: 'How often should I return?',
-        a: 'Most skin benefits from a facial every four to six weeks — aligned to the skin cell cycle.',
-      },
-      {
-        q: 'Will I have downtime?',
-        a: 'None of our facials produce meaningful downtime. You may leave slightly flushed; makeup is fine the same evening.',
-      },
-    ],
-    image: '/assets/Images/H-04.png',
-  },
-  {
-    id: 'velvet-smooth',
-    title: 'Velvet',
-    titleItalic: 'Smooth',
-    tagline: 'Waxing',
-    description:
-      'Gentle, precise hair removal rituals — calibrated waxes, careful technique, skin care at every step.',
-    longDescription:
-      "Velvet Smooth is waxing reframed as care. Our therapists are trained in both hard and soft wax, and they choose the formulation to match the area, the skin, and the hair — not the other way around. Every room is set up fresh for each client, and pre- and post-care is part of the ritual, not an afterthought.\n\nExpect a quiet room, warmed wax at the correct temperature, unhurried technique, and a calming balm at the close. We work with clients through every stage — first-time, long-term, sensitive skin, post-laser, and in-between.",
-    philosophy: 'Careful hands, calmer skin.',
-    faqs: [
-      {
-        q: 'How long should hair be before waxing?',
-        a: 'About a quarter inch — roughly two weeks of growth after shaving. Shorter hair may not lift cleanly.',
-      },
-      {
-        q: 'Is it safe for sensitive skin?',
-        a: 'Yes. We adjust wax temperature and formulation to the area and skin type, and we always finish with a calming balm.',
-      },
-      {
-        q: 'How often should I return?',
-        a: 'Every three to six weeks depending on the area and growth cycle. Regularity makes each visit easier on the skin.',
-      },
-      {
-        q: 'Can I wax while using retinoids?',
-        a: 'We ask you to pause retinoids for at least three days before and after your appointment to avoid skin lifting.',
-      },
-    ],
-    image: '/assets/Images/H-01.png',
-  },
-  {
-    id: 'body-renewal',
-    title: 'Body',
-    titleItalic: 'Renewal',
-    tagline: 'Makeup',
-    description:
-      'Makeup artistry that lets the skin stay skin — luminous, lived-in, and suited to the day you are having.',
-    longDescription:
-      'Body Renewal is our makeup studio — built around the idea that the best makeup looks like skin doing well, not skin covered up. Our artists work in layered light: sheer base, targeted concealing, a warmed cheek, a defined eye that reads from two metres and from across a dinner table.\n\nWe keep the kit clean-formula where it matters, pigment-rich where it needs to be, and tailored to the lighting of your day. First visits begin with a short conversation: where you are going, how you want to be seen, what you wear at home and what you borrow for events.',
-    philosophy: 'Skin, kept skin.',
-    faqs: [
-      {
-        q: 'Do I need a trial before my wedding day?',
-        a: 'Yes. We book a full trial two to three weeks before the event so we can finalise the look and note every product for the day.',
-      },
-      {
-        q: 'What should I bring to my first appointment?',
-        a: 'Come with clean skin. If you have a reference image, bring it — it helps the conversation. Your own lashes, if you prefer a specific style.',
-      },
-      {
-        q: 'How long does the makeup last?',
-        a: 'A properly prepped base holds eight to ten hours. For events longer than that, we brief you on small touch-ups.',
-      },
-      {
-        q: 'Can you travel to my venue?',
-        a: 'Yes — for bridal and editorial bookings we travel within the Gulf. Please enquire at least four weeks in advance.',
-      },
-    ],
-    image: '/assets/Images/H-12.png',
-  },
-  {
-    id: 'longevity-lab',
-    title: 'The Longevity',
-    titleItalic: 'Lab',
-    tagline: 'Wellness',
-    description:
-      'Science-led protocols and next-generation aesthetics for those invested in long-term vitality.',
-    longDescription:
-      "The Longevity Lab is the clinical floor of Mastercuts. This is where biomarkers, IV drips, cryotherapy, and functional aesthetics live — protocols built for people thinking in years, not in days. Every first visit begins with a consultation: the story of your sleep, your stress, your labs, your intentions.\n\nFrom there, we design a rhythm. Some clients come monthly; others treat the Lab as a seasonal reset. We do not sell what we don't believe in, and we don't chase trends. The brief here is measurable, patient, and quiet.",
-    philosophy: 'Measured, patient, informed.',
-    faqs: [
-      {
-        q: 'Do I need a consultation before my first IV?',
-        a: 'Yes. Our medical team reviews your health history and current medications before any intravenous protocol.',
-      },
-      {
-        q: 'How do I prepare for a biomarker panel?',
-        a: 'Fast for eight to twelve hours before your visit. Water is fine. Bring a list of any supplements you take.',
-      },
-      {
-        q: 'Is cryotherapy safe for everyone?',
-        a: "There are contraindications — cardiovascular conditions, Raynaud's, certain skin conditions, pregnancy. We screen at booking.",
-      },
-      {
-        q: 'Who is the Lab for?',
-        a: 'People actively invested in long-term vitality — pre-event recovery, athletic performance, post-illness rehabilitation, or simply a desire to understand your own biology more deeply.',
-      },
-    ],
-    image: '/assets/Images/H-07.png',
-  },
-];
+// `rituals` is gone. It duplicated the backend sub-categories one-for-one
+// (a proven 8↔8 bijection) and supplied their titles, taglines, blurbs and
+// FAQs — all of which are now columns on Department and arrive via /services.
+// See docs/master-cuts/05-catalog-backend-driven-refactor.md.
 
-export const services: Service[] = [
+export const services: FallbackService[] = [
   // The Atelier
   {
-    id: 'atelier-signature-cut',
-    ritualId: 'atelier',
-    name: 'Signature Cut & Style',
+    id: 'atelier-signature-cut',    name: 'Signature Cut & Style',
     description: 'A precise cut tailored to your face shape, finished with a hand-blown silhouette.',
     highlights: [
       'Studied to your face & texture',
@@ -259,9 +27,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'atelier-colour-transformation',
-    ritualId: 'atelier',
-    name: 'Colour Transformation',
+    id: 'atelier-colour-transformation',    name: 'Colour Transformation',
     description: 'Full balayage, correction, or dimensional colour by a senior colourist.',
     highlights: [
       'Dimensional base, highlights & lowlights',
@@ -277,9 +43,7 @@ export const services: Service[] = [
     requiresConsultation: true,
   },
   {
-    id: 'atelier-deep-conditioning',
-    ritualId: 'atelier',
-    name: 'Deep Conditioning Treatment',
+    id: 'atelier-deep-conditioning',    name: 'Deep Conditioning Treatment',
     description: 'Restorative bond-building masque, scalp massage, and silk blow-dry.',
     highlights: [
       'Bond-building masque under steam',
@@ -294,9 +58,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'atelier-bridal-design',
-    ritualId: 'atelier',
-    name: 'Bridal Hair Design',
+    id: 'atelier-bridal-design',    name: 'Bridal Hair Design',
     description: 'Pre-wedding consultation, trial session, and bridal-day styling.',
     highlights: [
       'Three-visit relationship with Bridal Director',
@@ -314,9 +76,7 @@ export const services: Service[] = [
 
   // Solar Vitality
   {
-    id: 'solar-glow-facial',
-    ritualId: 'solar-vitality',
-    name: 'Ra Glow Facial',
+    id: 'solar-glow-facial',    name: 'Ra Glow Facial',
     description: 'Signature multi-step facial with botanical serums and lymphatic massage.',
     highlights: [
       'Botanical base with clinical-grade actives',
@@ -336,9 +96,7 @@ export const services: Service[] = [
     ],
   },
   {
-    id: 'solar-vitamin-c',
-    ritualId: 'solar-vitality',
-    name: 'Vitamin C Brightening',
+    id: 'solar-vitamin-c',    name: 'Vitamin C Brightening',
     description: 'Targets dullness and pigmentation with a high-potency vitamin C protocol.',
     highlights: [
       'Stable L-ascorbic acid serums',
@@ -353,9 +111,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'solar-led-therapy',
-    ritualId: 'solar-vitality',
-    name: 'LED Light Therapy',
+    id: 'solar-led-therapy',    name: 'LED Light Therapy',
     description: 'Medical-grade LED session to calm, firm, and accelerate skin renewal.',
     highlights: [
       'Red, blue & near-infrared panels',
@@ -370,9 +126,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'solar-hydration-infusion',
-    ritualId: 'solar-vitality',
-    name: 'Hydration Infusion',
+    id: 'solar-hydration-infusion',    name: 'Hydration Infusion',
     description: 'Deep hyaluronic replenishment for dehydrated and sensitised skin.',
     highlights: [
       'Multi-weight hyaluronic layers',
@@ -390,9 +144,7 @@ export const services: Service[] = [
   // Body Rituals (Massages) — Ra at Home launch catalog. Real services
   // provided by the client.
   {
-    id: 'somatic-signature-massage',
-    ritualId: 'somatic-recovery',
-    name: 'Ra Signature Massage',
+    id: 'somatic-signature-massage',    name: 'Ra Signature Massage',
     description:
       'A restorative fusion of warmth, deep relief and calming holistic relaxation.',
     detail:
@@ -406,9 +158,7 @@ export const services: Service[] = [
     location: 'both',
   },
   {
-    id: 'somatic-deep-tissue',
-    ritualId: 'somatic-recovery',
-    name: 'The Deep Tissue Therapy',
+    id: 'somatic-deep-tissue',    name: 'The Deep Tissue Therapy',
     description:
       'Deep pressure therapy to relieve tension, restore mobility and rebalance the body.',
     detail:
@@ -426,9 +176,7 @@ export const services: Service[] = [
     ],
   },
   {
-    id: 'somatic-balinese',
-    ritualId: 'somatic-recovery',
-    name: 'The Balinese Therapy',
+    id: 'somatic-balinese',    name: 'The Balinese Therapy',
     description:
       'A soothing Balinese massage that relieves tension, restores balance and renews energy.',
     detail:
@@ -446,9 +194,7 @@ export const services: Service[] = [
     ],
   },
   {
-    id: 'somatic-swedish',
-    ritualId: 'somatic-recovery',
-    name: 'The Soft Serenity Massage',
+    id: 'somatic-swedish',    name: 'The Soft Serenity Massage',
     description:
       'A Swedish massage designed to ease tension, restore balance and relax the body.',
     detail:
@@ -466,9 +212,7 @@ export const services: Service[] = [
     ],
   },
   {
-    id: 'somatic-sensory',
-    ritualId: 'somatic-recovery',
-    name: 'The Sensory Body Therapy',
+    id: 'somatic-sensory',    name: 'The Sensory Body Therapy',
     description:
       'Rebalance with a deeply calming massage using custom oils and rhythmic touch.',
     detail:
@@ -486,9 +230,7 @@ export const services: Service[] = [
     ],
   },
   {
-    id: 'somatic-scalp',
-    ritualId: 'somatic-recovery',
-    name: 'Ra Serenity Scalp Therapy',
+    id: 'somatic-scalp',    name: 'Ra Serenity Scalp Therapy',
     description:
       'Nourishing scalp oil therapy with shoulder massage for deep relaxation and calm.',
     detail:
@@ -504,9 +246,7 @@ export const services: Service[] = [
   // Add-on enhancements — NOT independently bookable. Surface in the cart only
   // once a parent massage (ritual 'somatic-recovery') is present.
   {
-    id: 'somatic-hotstone',
-    ritualId: 'somatic-recovery',
-    name: 'Hot Stone Enhancement',
+    id: 'somatic-hotstone',    name: 'Hot Stone Enhancement',
     description:
       'Heated stones ease tension, relax muscles and deepen your massage experience.',
     detail:
@@ -524,9 +264,7 @@ export const services: Service[] = [
     addOn: true,
   },
   {
-    id: 'somatic-cupping',
-    ritualId: 'somatic-recovery',
-    name: 'Cupping Enhancement',
+    id: 'somatic-cupping',    name: 'Cupping Enhancement',
     description:
       'Targeted cupping therapy to release tension and support muscle recovery.',
     detail:
@@ -543,9 +281,7 @@ export const services: Service[] = [
   // Signature Rituals — the awareness ritual; a 45-minute Ra introduction.
   // ID prefix 'signature-' is matched by the Signature group in AtHomePage.
   {
-    id: 'signature-intro-45',
-    ritualId: 'signature-rituals',
-    name: 'Ra Signature Introduction',
+    id: 'signature-intro-45',    name: 'Ra Signature Introduction',
     description:
       'A 45-minute introduction to the essence of Ra — aromatherapy, focused deep tissue and warmed stones.',
     detail:
@@ -566,9 +302,7 @@ export const services: Service[] = [
 
   // Alchemic Aesthetics
   {
-    id: 'alchemic-gel-manicure',
-    ritualId: 'alchemic-aesthetics',
-    name: 'Gel Manicure',
+    id: 'alchemic-gel-manicure',    name: 'Gel Manicure',
     description: 'Long-wear gel manicure with cuticle ritual and hand massage.',
     highlights: [
       'Cuticle-first, soak-off method',
@@ -584,9 +318,7 @@ export const services: Service[] = [
     location: 'salon',
   },
   {
-    id: 'alchemic-luxury-pedicure',
-    ritualId: 'alchemic-aesthetics',
-    name: 'Luxury Pedicure',
+    id: 'alchemic-luxury-pedicure',    name: 'Luxury Pedicure',
     description: 'Foot soak, exfoliation, callus care, and polish with a calf massage.',
     highlights: [
       'Mineral-salt soak in a copper basin',
@@ -602,9 +334,7 @@ export const services: Service[] = [
     location: 'salon',
   },
   {
-    id: 'alchemic-nail-art',
-    ritualId: 'alchemic-aesthetics',
-    name: 'Nail Art & Design',
+    id: 'alchemic-nail-art',    name: 'Nail Art & Design',
     description: 'Considered hand-painted or encapsulated nail art by a resident artist.',
     highlights: [
       'Hand-painted by a resident artist',
@@ -620,9 +350,7 @@ export const services: Service[] = [
     location: 'salon',
   },
   {
-    id: 'alchemic-paraffin',
-    ritualId: 'alchemic-aesthetics',
-    name: 'Paraffin Treatment',
+    id: 'alchemic-paraffin',    name: 'Paraffin Treatment',
     description: 'Warm paraffin wax therapy for deeply softened hands or feet.',
     highlights: [
       'Deeply softens dehydrated skin',
@@ -640,9 +368,7 @@ export const services: Service[] = [
 
   // The Longevity Lab
   {
-    id: 'longevity-iv-drip',
-    ritualId: 'longevity-lab',
-    name: 'IV Drip Therapy',
+    id: 'longevity-iv-drip',    name: 'IV Drip Therapy',
     description: 'Tailored vitamin and antioxidant infusion administered by a medical team.',
     highlights: [
       'Formulated by in-house medical team',
@@ -658,9 +384,7 @@ export const services: Service[] = [
     requiresConsultation: true,
   },
   {
-    id: 'longevity-cryotherapy',
-    ritualId: 'longevity-lab',
-    name: 'Cryotherapy',
+    id: 'longevity-cryotherapy',    name: 'Cryotherapy',
     description: 'Whole-body cold exposure to support recovery, mood, and inflammation.',
     highlights: [
       'Three-minute whole-body session',
@@ -675,9 +399,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'longevity-biomarker',
-    ritualId: 'longevity-lab',
-    name: 'Biomarker Assessment',
+    id: 'longevity-biomarker',    name: 'Biomarker Assessment',
     description: 'Comprehensive blood panel and lifestyle review with a longevity specialist.',
     highlights: [
       'Full metabolic & hormonal panel',
@@ -693,9 +415,7 @@ export const services: Service[] = [
     requiresConsultation: true,
   },
   {
-    id: 'longevity-anti-ageing-facial',
-    ritualId: 'longevity-lab',
-    name: 'Anti-Ageing Facial',
+    id: 'longevity-anti-ageing-facial',    name: 'Anti-Ageing Facial',
     description: 'Peptide-rich protocol with microcurrent lift and sculpting massage.',
     highlights: [
       'Microcurrent lift with peptide serums',
@@ -712,9 +432,7 @@ export const services: Service[] = [
 
   // Velvet Smooth
   {
-    id: 'velvet-full-leg',
-    ritualId: 'velvet-smooth',
-    name: 'Full Leg Wax',
+    id: 'velvet-full-leg',    name: 'Full Leg Wax',
     description: 'Complete leg waxing with warm wax and calming post-care balm.',
     highlights: [
       'Low-temperature warm wax',
@@ -729,9 +447,7 @@ export const services: Service[] = [
     audience: 'ladies',
   },
   {
-    id: 'velvet-brazilian',
-    ritualId: 'velvet-smooth',
-    name: 'Brazilian Wax',
+    id: 'velvet-brazilian',    name: 'Brazilian Wax',
     description: 'Precise, hygienic intimate waxing by a specialist therapist.',
     highlights: [
       'Performed in a private suite',
@@ -746,9 +462,7 @@ export const services: Service[] = [
     audience: 'ladies',
   },
   {
-    id: 'velvet-underarm',
-    ritualId: 'velvet-smooth',
-    name: 'Underarm Wax',
+    id: 'velvet-underarm',    name: 'Underarm Wax',
     description: 'Quick, precise underarm waxing with skin-calming finish.',
     highlights: [
       'In-and-out in twenty minutes',
@@ -763,9 +477,7 @@ export const services: Service[] = [
     audience: 'unisex',
   },
   {
-    id: 'velvet-mens-back-chest',
-    ritualId: 'velvet-smooth',
-    name: "Men's Back & Chest Wax",
+    id: 'velvet-mens-back-chest',    name: "Men's Back & Chest Wax",
     description: 'Thorough back and chest waxing in a private suite.',
     highlights: [
       'Private suite, male therapist on request',
@@ -780,9 +492,7 @@ export const services: Service[] = [
     audience: 'gentlemen',
   },
   {
-    id: 'velvet-threading-brows',
-    ritualId: 'velvet-smooth',
-    name: 'Eyebrow Threading',
+    id: 'velvet-threading-brows',    name: 'Eyebrow Threading',
     description: 'Precise brow shaping using ancient cotton-thread technique.',
     highlights: [
       'Cotton thread, no wax or pulling',
@@ -798,9 +508,7 @@ export const services: Service[] = [
     location: 'salon',
   },
   {
-    id: 'velvet-threading-lip',
-    ritualId: 'velvet-smooth',
-    name: 'Upper Lip Threading',
+    id: 'velvet-threading-lip',    name: 'Upper Lip Threading',
     description: 'Fast, precise upper-lip hair removal by thread.',
     highlights: [
       'Under ten minutes',
@@ -816,9 +524,7 @@ export const services: Service[] = [
     location: 'salon',
   },
   {
-    id: 'velvet-threading-face',
-    ritualId: 'velvet-smooth',
-    name: 'Full Face Threading',
+    id: 'velvet-threading-face',    name: 'Full Face Threading',
     description: 'Complete facial hair removal — cheeks, chin, brows, lip.',
     highlights: [
       'Brows, lip, chin, cheeks & sideburns',
@@ -836,9 +542,7 @@ export const services: Service[] = [
 
   // Body Renewal
   {
-    id: 'renewal-day-makeup',
-    ritualId: 'body-renewal',
-    name: 'Day Makeup',
+    id: 'renewal-day-makeup',    name: 'Day Makeup',
     description: 'A luminous, lived-in look tailored to your day and your light.',
     highlights: [
       "Tailored to your day's lighting",
@@ -853,9 +557,7 @@ export const services: Service[] = [
     audience: 'ladies',
   },
   {
-    id: 'renewal-bridal-makeup',
-    ritualId: 'body-renewal',
-    name: 'Bridal Makeup',
+    id: 'renewal-bridal-makeup',    name: 'Bridal Makeup',
     description: 'Pre-wedding trial and bridal-day makeup by a senior artist.',
     highlights: [
       'Two-visit relationship: trial + day',
@@ -871,9 +573,7 @@ export const services: Service[] = [
     requiresConsultation: true,
   },
   {
-    id: 'renewal-editorial',
-    ritualId: 'body-renewal',
-    name: 'Editorial & Event',
+    id: 'renewal-editorial',    name: 'Editorial & Event',
     description: 'Camera-ready makeup for shoots, events, and occasions.',
     highlights: [
       'Sculptural for camera & galas',
@@ -888,9 +588,7 @@ export const services: Service[] = [
     audience: 'ladies',
   },
   {
-    id: 'renewal-grooming-brows',
-    ritualId: 'body-renewal',
-    name: 'Brow Grooming & Tint',
+    id: 'renewal-grooming-brows',    name: 'Brow Grooming & Tint',
     description: 'Precise shaping with optional tint, for soft or defined brows.',
     highlights: [
       'Mapped to your face shape',
@@ -912,7 +610,32 @@ export const services: Service[] = [
 // reinstated (inclusive, non-promotional presentation).
 export const therapists: Therapist[] = [];
 
-export const packages: Package[] = [
+/** Shape of the retired bundled journeys. See `packages` below. */
+interface BundledJourney {
+  id: string;
+  name: string;
+  tagline: string;
+  category: string;
+  description: string;
+  longDescription: string;
+  philosophy: string;
+  image: string;
+  serviceIds: string[];
+  savings: number;
+}
+
+/**
+ * The five original hardcoded Journeys.
+ *
+ * DEAD as of Phase 6.6 — packages are served by the backend and nothing
+ * imports these any more. They are retained only as the reference copy the
+ * migration was built from, and are deleted in Phase 6.7.
+ *
+ * Deliberately NOT typed as `Package`: that interface now carries
+ * backend-derived pricing (price, durationMin, originalPrice, savingsAmount,
+ * items, incomplete) which a bundled literal cannot supply.
+ */
+export const packages: BundledJourney[] = [
   {
     id: 'bridal-day',
     name: 'The Bridal Bloom',
@@ -999,58 +722,24 @@ export const packages: Package[] = [
   },
 ];
 
-export function getService(id: string): Service | undefined {
+export function getService(id: string): FallbackService | undefined {
   return services.find((s) => s.id === id);
-}
-
-export function getRitual(id: string): Ritual | undefined {
-  return rituals.find((r) => r.id === id);
 }
 
 export function getTherapist(id: string): Therapist | undefined {
   return therapists.find((s) => s.id === id);
 }
 
-export function getTherapistsForRitual(ritualId: string): Therapist[] {
-  return therapists.filter((s) => s.ritualIds.includes(ritualId as never));
-}
-
-export function getServicesForRitual(
-  ritualId: string,
-  audience?: ServiceAudience,
-): Service[] {
-  return services.filter((s) => {
-    if (s.ritualId !== ritualId) return false;
-    if (s.addOn) return false; // add-ons are never independently bookable
-    if (!audience || audience === 'unisex') return true;
-    return s.audience === audience || s.audience === 'unisex';
-  });
-}
-
-// Returns services eligible for at-home booking, filtered by audience.
-// At-home services are limited to Nails, Massage, and Threading per current
-// transition-period operations.
-export function getAtHomeServices(audience?: ServiceAudience): Service[] {
-  return services.filter((s) => {
-    if (s.addOn) return false; // add-ons are never independently bookable
-    const loc = s.location ?? 'salon';
-    if (loc === 'salon') return false;
-    if (!audience || audience === 'unisex') return true;
-    return s.audience === audience || s.audience === 'unisex';
-  });
-}
-
-export function getPackagesForRitual(ritualId: string): Package[] {
-  const ritualServiceIds = new Set(
-    services.filter((s) => s.ritualId === ritualId).map((s) => s.id)
-  );
-  return packages.filter((p) => p.serviceIds.some((id) => ritualServiceIds.has(id)));
-}
+// `getRitual`, `getTherapistsForRitual`, `getServicesForRitual`,
+// `getAtHomeServices` and `getPackagesForRitual` are gone. Grouping and
+// at-home eligibility are backend facts now — `CatalogProvider.getSections` /
+// `getSectionServices` read them from /services. These module-level copies
+// filtered the BUNDLED array, so they could only ever have gone stale.
 
 // Journeys are packages in the richer, storytelling framing.
 export const journeys = packages;
 
-export function getJourney(id: string): Package | undefined {
+export function getJourney(id: string): BundledJourney | undefined {
   return packages.find((p) => p.id === id);
 }
 
@@ -1061,63 +750,17 @@ export interface JourneyTotals {
   savingsAed: number;
 }
 
-export function getFrequentlyAddedSuggestions(cartServiceIds: string[], limit = 6): Service[] {
-  if (cartServiceIds.length === 0) return [];
+// `getFrequentlyAddedSuggestions` and `getAddOnSuggestions` lived here but
+// filtered the BUNDLED array. CatalogProvider re-implements both against the
+// API-derived catalog; these copies were referenced only by a `void` and their
+// ritual-based grouping no longer had anything to group on.
 
-  // Collect ritual IDs of items in cart
-  const cartRitualIds = new Set<string>();
-  const cartIdSet = new Set(cartServiceIds);
-  for (const id of cartServiceIds) {
-    const svc = getService(id);
-    if (svc) cartRitualIds.add(svc.ritualId);
-  }
 
-  // Gather candidates: services from the same rituals, not already in cart.
-  // Only services flagged `frequentlyAdded: true` are eligible. This list
-  // will grow as the catalog matures — flagging is the only change needed.
-  const sameRitual: Service[] = [];
-  const crossRitual: Service[] = [];
 
-  for (const svc of services) {
-    if (!svc.frequentlyAdded) continue;
-    if (cartIdSet.has(svc.id)) continue;
-    if (cartRitualIds.has(svc.ritualId)) {
-      sameRitual.push(svc);
-    } else {
-      crossRitual.push(svc);
-    }
-  }
-
-  // Mix: prioritize same-ritual services, then add cross-ritual for variety
-  const result: Service[] = [];
-  for (const svc of sameRitual) {
-    if (result.length >= limit) break;
-    result.push(svc);
-  }
-  for (const svc of crossRitual) {
-    if (result.length >= limit) break;
-    result.push(svc);
-  }
-
-  return result;
-}
-
-// Enhancement add-ons (Hot Stone, Cupping) cannot be booked on their own.
-// They surface in the cart only once a parent massage is present. Ungated:
-// any Body Ritual massage ('somatic-recovery', non-add-on) in the cart makes
-// every add-on available. Returns add-ons not already in the cart.
-export function getAddOnSuggestions(cartServiceIds: string[]): Service[] {
-  const cartIdSet = new Set(cartServiceIds);
-  const hasParentMassage = cartServiceIds.some((id) => {
-    const svc = getService(id);
-    return !!svc && svc.ritualId === 'somatic-recovery' && !svc.addOn;
-  });
-  if (!hasParentMassage) return [];
-  return services.filter((s) => s.addOn && !cartIdSet.has(s.id));
-}
-
-export function getJourneyTotals(journey: Package): JourneyTotals {
-  const resolved = journey.serviceIds.map(getService).filter(Boolean) as Service[];
+export function getJourneyTotals(journey: BundledJourney): JourneyTotals {
+  const resolved = journey.serviceIds
+    .map(getService)
+    .filter(Boolean) as FallbackService[];
   const totalDuration = resolved.reduce((s, svc) => s + svc.durationMin, 0);
   const totalPriceFull = resolved.reduce((s, svc) => s + svc.price, 0);
   const totalPriceDiscounted = Math.round(totalPriceFull * (1 - journey.savings / 100));
@@ -1132,7 +775,6 @@ export function getJourneyTotals(journey: Package): JourneyTotals {
 // --- API-catalog interop aliases ---------------------------------------
 // Same data, semantic names. catalogAdapter.ts reads from these so the
 // "what's hardcoded" intent is explicit at the import site.
-export const HARDCODED_RITUALS = rituals;
 export const HARDCODED_SERVICES = services;
 export const HARDCODED_THERAPISTS = therapists;
 export const HARDCODED_PACKAGES = packages;
