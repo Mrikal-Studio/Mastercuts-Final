@@ -33,7 +33,7 @@ export function Footer() {
     setAudience(audience);
     navigate('/explore');
   };
-  const goToAtHome = () => openAudiencePicker('/at-home');
+  const goToAtHome = () => openAudiencePicker('/at-home', 'footer_link');
 
   const goToSection = (id: string) => {
     if (isHome) {

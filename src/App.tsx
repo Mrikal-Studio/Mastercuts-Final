@@ -25,10 +25,14 @@ import { ServiceDetailSheet } from './components/services/ServiceDetailSheet';
 import { WelcomeAnnouncement } from './components/layout/WelcomeAnnouncement';
 import { SearchSheet } from './components/layout/SearchSheet';
 import { EditContactOverlay } from './components/cart/steps/EditContactOverlay';
+import { RouteAnalytics } from './components/analytics/RouteAnalytics';
 
 function App() {
   return (
     <BrowserRouter>
+      {/* Reports SPA route changes to the dataLayer. Must sit inside the
+          router (it reads useLocation) and renders nothing. */}
+      <RouteAnalytics />
       <CatalogProvider>
         <CartProvider>
           <div className="min-h-screen pb-16 lg:pb-0">

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useEnterRaAtHome } from '@/components/analytics/useEnterRaAtHome';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Search, X } from 'lucide-react';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
@@ -11,6 +12,7 @@ import {
   type ChipId,
 } from '@/components/services/RitualChipRow';
 import { ServiceCard, JourneyCard } from '@/components/services/ServiceCard';
+import { trackCategorySelected } from '@/lib/analytics';
 
 // Flip to true once the salon reopens. Hides the live catalog and routes
 // users into Ra at Home during the transition.
@@ -32,6 +34,7 @@ const SCROLL_BREATHING = 12;
 export function ExplorePage() {
   const { hash } = useLocation();
   const navigate = useNavigate();
+  const enterRaAtHome = useEnterRaAtHome();
   const { sections, packages } = useCatalog();
   const [audience, setAudience] = useAudience();
 
@@ -94,7 +97,7 @@ export function ExplorePage() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/at-home')}
+              onClick={() => enterRaAtHome('explore_renovation_cta')}
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-bg-dark text-white px-7 py-3.5 text-sm font-medium hover:bg-bg-darker transition-colors"
             >
               Explore Ra at Home
@@ -219,12 +222,26 @@ export function ExplorePage() {
     };
   }, [visibleChips]);
 
+  /**
+   * Explicit chip tap only — the scroll-spy effect above writes `activeId`
+   * too, and that is not a selection. See the same split on AtHomePage.
+   */
   const handleChipChange = useCallback(
     (id: ChipId) => {
       setActiveId(id);
       scrollToSection(id);
+
+      const section = sections.find((s) => s.id === id);
+      if (section) {
+        trackCategorySelected({
+          item_category: section.name,
+          category_id: section.id,
+          audience,
+          selection_source: 'explore_chip',
+        });
+      }
     },
-    [scrollToSection],
+    [scrollToSection, sections, audience],
   );
 
   const setSectionRef = (id: ChipId) => (el: HTMLElement | null) => {
@@ -246,7 +263,12 @@ export function ExplorePage() {
           <p className="text-text-secondary text-[11px] uppercase tracking-[0.18em]">
             Our services for
           </p>
-          <AudienceToggle value={audience} onChange={setAudience} size="sm" variant="light" />
+          <AudienceToggle
+            value={audience}
+            onChange={(next) => setAudience(next, 'explore_toggle')}
+            size="sm"
+            variant="light"
+          />
         </div>
 
         {/* Search input — collapses on scroll-down, reveals on scroll-up */}

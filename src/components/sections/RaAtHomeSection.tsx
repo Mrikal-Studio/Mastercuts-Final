@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { forwardRef, useRef, useState, useEffect, useCallback, useMemo, type ComponentType } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEnterRaAtHome } from '@/components/analytics/useEnterRaAtHome';
 import { ArrowUpRight, Flower2, HandHeart, Scissors, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
@@ -119,7 +119,7 @@ const CategoryChip = forwardRef<HTMLButtonElement, ChipProps>(function CategoryC
 
 export function RaAtHomeSection() {
   const sectionRef = useRef<HTMLElement>(null);
-  const navigate = useNavigate();
+  const enterRaAtHome = useEnterRaAtHome();
   const [audience, setAudience] = useAudience();
   const { getAtHomeServices, getSections } = useCatalog();
   const reduceMotion = useReducedMotion();
@@ -330,7 +330,7 @@ export function RaAtHomeSection() {
           </div>
           <div className="ml-auto">
             <Button
-              onClick={() => navigate('/at-home')}
+              onClick={() => enterRaAtHome('home_ra_at_home_desktop_cta')}
               className="bg-white text-text-primary hover:bg-white/90 rounded-full px-7 py-4 text-sm font-medium flex items-center gap-3 group"
             >
               Explore Ra at Home
@@ -412,7 +412,11 @@ export function RaAtHomeSection() {
                     <p className="text-white/50 text-xs uppercase tracking-[0.18em]">
                       Home services for
                     </p>
-                    <AudienceToggle value={audience} onChange={setAudience} size="sm" />
+                    <AudienceToggle
+                      value={audience}
+                      onChange={(next) => setAudience(next, 'home_ra_at_home_toggle_desktop')}
+                      size="sm"
+                    />
                   </div>
                   <div
                     ref={desktopChipScrollRef}
@@ -477,7 +481,11 @@ export function RaAtHomeSection() {
               <p className="text-white/50 text-xs uppercase tracking-[0.18em]">
                 Home services for
               </p>
-              <AudienceToggle value={audience} onChange={setAudience} size="sm" />
+              <AudienceToggle
+                value={audience}
+                onChange={(next) => setAudience(next, 'home_ra_at_home_toggle_mobile')}
+                size="sm"
+              />
             </div>
           </div>
           <div className="px-6">
@@ -539,7 +547,7 @@ export function RaAtHomeSection() {
 
         <div className="px-6 mt-12">
           <Button
-            onClick={() => navigate('/at-home')}
+            onClick={() => enterRaAtHome('home_ra_at_home_mobile_cta')}
             className="bg-white text-text-primary hover:bg-white/90 rounded-full px-8 py-6 text-sm font-medium flex items-center justify-center gap-3 group w-full"
           >
             Explore Ra at Home

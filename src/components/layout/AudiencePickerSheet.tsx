@@ -111,7 +111,7 @@ export function AudiencePickerSheet() {
   const open = surface === 'audience-picker';
 
   const handleSelect = (key: Exclude<ServiceAudience, 'unisex'>) => {
-    setAudience(key);
+    setAudience(key, 'audience_picker_sheet');
     closeAll();
     // Delay navigation until the close animation completes so the transition
     // feels intentional instead of jarring.

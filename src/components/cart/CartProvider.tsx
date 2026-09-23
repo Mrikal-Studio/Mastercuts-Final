@@ -2,7 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { toast } from 'sonner';
 import type { Cart, CartItem, DraftCheckout, GuestDetails, GuestProfile, LightAccount, BookingRecord, ServiceAddress, WaitlistRequest } from '@/lib/booking/types';
 import { pickServiceImage } from '@/lib/booking/types';
-import { useAudience } from '@/components/services/useAudience';
+import {
+  useAudience,
+  hasChosenAudience,
+} from '@/components/services/useAudience';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
 import {
   CART_KEY,
@@ -32,7 +35,15 @@ import {
   type ServiceUnits,
 } from '@/lib/api/bookings';
 import { ApiError, NetworkError, toErrorMessage } from '@/lib/api/errors';
-import { trackAddToCart } from '@/lib/analytics';
+import {
+  trackAddToCart,
+  trackBeginCheckout,
+  trackCheckoutProgress,
+  trackExploreRaAtHome,
+  trackPurchase,
+  trackViewItem,
+  type AnalyticsItem,
+} from '@/lib/analytics';
 
 const SELF_GUEST_ID = 'self';
 
@@ -96,7 +107,7 @@ interface CartContextValue {
   openCheckout: () => void;
   openLogin: () => void;
   openProfile: () => void;
-  openAudiencePicker: (destination?: string) => void;
+  openAudiencePicker: (destination?: string, ctaLocation?: string) => void;
   audiencePickerDestination: string;
   openExplorePicker: () => void;
   openPaymentMethod: () => void;
@@ -158,6 +169,49 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+/**
+ * Map a cart line to a GA4 `items` entry.
+ *
+ * Mirrors the price/quantity convention `addToCart` established: a unit-priced
+ * line (per nail) reports the RATE as `price` and the unit count as
+ * `quantity`, because GA4 multiplies the two. `CartItem.price` is the LINE
+ * TOTAL, so sending it alongside `quantity > 1` would double-count revenue.
+ * Ordinary lines are a flat price at quantity 1.
+ *
+ * `category` is passed in rather than derived here: `CartItem` deliberately
+ * stores no section key, so it has to be resolved through the catalog by the
+ * caller that has `getService`/`getSectionById` in scope.
+ */
+function toAnalyticsItem(
+  item: CartItem,
+  category: string | undefined,
+): AnalyticsItem {
+  const isUnitPriced =
+    !!item.pricingUnit && item.pricingUnit !== 'service' && !!item.unitPrice;
+  return {
+    item_id: item.serviceId,
+    item_name: item.name,
+    price: isUnitPriced ? (item.unitPrice as number) : item.price,
+    quantity: isUnitPriced ? (item.units ?? 1) : 1,
+    item_variant: item.variantLabel,
+    item_category: category,
+  };
+}
+
+/**
+ * Ordinal for `checkout_step`, and the gate on what counts as progress.
+ *
+ * `'none'` is absent deliberately: it means the overlay closed (either the
+ * customer went back to the basket, or a step finished and handed control
+ * back), which is not a step being reached.
+ */
+const CHECKOUT_STEP_ORDER: Record<Exclude<CheckoutStep, 'none'>, number> = {
+  'email-login': 1,
+  'otp-verify': 2,
+  address: 3,
+  'date-time': 4,
+};
+
 const emptyCart: Cart = { items: [], updatedAt: Date.now() };
 const BASKET_VIEW: DrawerView = { name: 'basket' };
 const SECTION_INDEX_VIEW: DrawerView = { name: 'section-index' };
@@ -189,8 +243,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const guestsHydratedRef = useRef(false);
   const waitlistHydratedRef = useRef(false);
   const cartItemCountRef = useRef(0);
+  // Lets analytics read the live cart without making `cart` a dependency of
+  // the surface callbacks — adding it would rebuild them on every cart change
+  // and defeat their memoisation.
+  const cartItemsRef = useRef<CartItem[]>(cart.items);
+  // Mirrors `checkoutStep` for the tracked setter, which must compare the
+  // outgoing and incoming step synchronously — the state value itself is
+  // stale inside the same event handler.
+  const checkoutStepRef = useRef<CheckoutStep>('none');
+  // High-water mark of the current checkout attempt, as a step ordinal. Guards
+  // `checkout_progress` against re-reporting a step the customer returns to.
+  const furthestCheckoutStepRef = useRef(0);
 
   cartItemCountRef.current = cart.items.length;
+  cartItemsRef.current = cart.items;
 
   // Hydrate from localStorage on mount
   useEffect(() => {
@@ -286,7 +352,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
         const item: CartItem = {
           id: newId,
-          serviceId: service.id,          name: service.name,
+          serviceId: service.id,
+          name: service.name,
           durationMin: effectiveDuration,
           price: effectivePrice,
           image: pickServiceImage(service, audienceRef.current),
@@ -322,16 +389,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Unit-priced lines quote a RATE: send the rate as `price` and the unit
         // count as `quantity`, never the line total, because GA4 multiplies the
         // two. Ordinary lines are a flat price at quantity 1.
-        trackAddToCart([
-          {
-            item_id: service.id,
-            item_name: service.name,
-            price: isUnitPriced ? unitRate : effectivePrice,
-            quantity: unitQty,
-            item_variant: effectiveVariantLabel,
-            item_category: getSectionById(service.categoryId)?.name,
-          },
-        ]);
+        trackAddToCart(
+          [
+            {
+              item_id: service.id,
+              item_name: service.name,
+              price: isUnitPriced ? unitRate : effectivePrice,
+              quantity: unitQty,
+              item_variant: effectiveVariantLabel,
+              item_category: getSectionById(service.categoryId)?.name,
+            },
+          ],
+          { audience: audienceRef.current },
+        );
       }
 
       return added ? newId : null;
@@ -393,15 +463,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // customer is charged. Its members are display-only and never priced
       // independently, so emitting them would double-count the revenue.
       if (added) {
-        trackAddToCart([
-          {
-            item_id: journey.id,
-            item_name: journey.name,
-            price: journey.price,
-            quantity: 1,
-            item_category: journey.category,
-          },
-        ]);
+        trackAddToCart(
+          [
+            {
+              item_id: journey.id,
+              item_name: journey.name,
+              price: journey.price,
+              quantity: 1,
+              item_category: journey.category,
+            },
+          ],
+          { audience: audienceRef.current },
+        );
       }
 
       return added;
@@ -710,9 +783,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     addBooking(booking);
     setBookings(loadBookings());
     setCart({ items: [], updatedAt: Date.now() });
+
+    // The conversion. Reported here — after `createBooking` resolved with a
+    // real `booking_token` and before any success UI exists — so it can never
+    // be produced by rendering SuccessState, by the customer reopening the
+    // confirmation, or by a retry after a failure (a failed attempt threw
+    // above and never reached this line).
+    //
+    // `booking_token` doubles as the de-duplication key inside trackPurchase,
+    // so even if this were somehow reached twice for one booking only the
+    // first call would report. Money values come from the API response, not
+    // from the local cart, so what is reported is what was actually charged.
+    trackPurchase(
+      apiResult.booking.booking_token,
+      items.map((item) =>
+        toAnalyticsItem(
+          item,
+          getSectionById(getService(item.serviceId)?.categoryId)?.name,
+        ),
+      ),
+      apiResult.booking.total_price || subtotal,
+      {
+        booking_duration_min: apiResult.booking.total_duration_min,
+        audience: audienceRef.current,
+      },
+    );
+
     setBookingResult(booking);
     return booking;
-  }, [cart, account, paymentMethod, getSelectedAddress, guestProfiles]);
+  }, [
+    cart,
+    account,
+    paymentMethod,
+    getSelectedAddress,
+    guestProfiles,
+    getService,
+    getSectionById,
+  ]);
 
   const saveLightAccount = useCallback((next: LightAccount) => {
     saveAccount(next);
@@ -781,16 +888,74 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setSurface('cart');
   }, []);
 
+  /**
+   * `setCheckoutStep`, wrapped so every transition is reported from one place
+   * instead of from each of the twelve call sites.
+   *
+   * Reports only FORWARD movement into a new step. Three cases stay silent:
+   *   - `'none'`, which closes the overlay rather than reaching a step;
+   *   - re-entering the step already active, so a re-render or a repeated
+   *     setter call cannot double-report;
+   *   - going backwards (the overlay's back button), which is not progress.
+   *
+   * The push happens here in the event path, never in an effect watching
+   * `checkoutStep` — an effect would also fire for back-navigation and for
+   * StrictMode's double-invoke.
+   */
+  const setCheckoutStepTracked = useCallback((step: CheckoutStep) => {
+    checkoutStepRef.current = step;
+    setCheckoutStep(step);
+
+    // `'none'` closes the overlay; it is not a step being reached. It also
+    // ends the attempt, so the high-water mark resets and a later checkout
+    // reports its steps again from the start.
+    if (step === 'none') {
+      furthestCheckoutStepRef.current = 0;
+      return;
+    }
+
+    // Compared against the FURTHEST step reached in this attempt, not merely
+    // the previous one. Going back to fix a typo'd email and re-submitting
+    // returns the customer to a step they already reached, and reporting it
+    // twice would overstate that step in the funnel. Only genuinely new
+    // ground counts as progress.
+    const ordinal = CHECKOUT_STEP_ORDER[step];
+    if (ordinal <= furthestCheckoutStepRef.current) return;
+    furthestCheckoutStepRef.current = ordinal;
+
+    trackCheckoutProgress({
+      checkout_step: ordinal,
+      step_name: step,
+      audience: audienceRef.current,
+    });
+  }, []);
+
   const closeCart = useCallback(() => {
     setSurface('none');
     setDrawerStack([]);
-    setCheckoutStep('none');
+    // Reset through the tracked setter so the "current step" the next
+    // checkout compares against is cleared. Leaving it stale would make a
+    // second checkout attempt look like backward movement and go unreported.
+    setCheckoutStepTracked('none');
     setBookingResult(null);
-  }, []);
+  }, [setCheckoutStepTracked]);
 
   const openCheckout = useCallback(() => {
+    // Entering checkout is the reportable act, so this fires before the
+    // branching below decides WHICH step the customer lands on. The cart is
+    // read as it stands right now; nothing about it is modified for analytics.
+    trackBeginCheckout(
+      cartItemsRef.current.map((item) =>
+        toAnalyticsItem(
+          item,
+          getSectionById(getService(item.serviceId)?.categoryId)?.name,
+        ),
+      ),
+      { audience: audienceRef.current },
+    );
+
     if (!account) {
-      setCheckoutStep('email-login');
+      setCheckoutStepTracked('email-login');
     } else if (account.addresses.length > 0) {
       // Auto-select first saved address and skip to date-time
       const firstAddr = account.addresses[0];
@@ -799,26 +964,42 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         draftCheckout: { ...(prev.draftCheckout ?? {}), addressId: firstAddr.id },
         updatedAt: Date.now(),
       }));
-      setCheckoutStep('date-time');
+      setCheckoutStepTracked('date-time');
     } else {
-      setCheckoutStep('address');
+      setCheckoutStepTracked('address');
     }
-  }, [account]);
+  }, [account, getService, getSectionById, setCheckoutStepTracked]);
+
 
   const resetCheckout = useCallback(() => {
-    setCheckoutStep('none');
+    setCheckoutStepTracked('none');
     setBookingResult(null);
     setPaymentMethod('card');
-  }, []);
+  }, [setCheckoutStepTracked]);
   const openLogin = useCallback(() => {
     setSurface('login');
-    setCheckoutStep('email-login');
-  }, []);
+    setCheckoutStepTracked('email-login');
+  }, [setCheckoutStepTracked]);
   const openProfile = useCallback(() => setSurface('profile'), []);
-  const openAudiencePicker = useCallback((destination = '/explore') => {
-    setAudiencePickerDestination(destination);
-    setSurface('audience-picker');
-  }, []);
+  /**
+   * `ctaLocation` is analytics-only and names the CTA that opened the picker.
+   * Optional, so the call remains valid without it.
+   *
+   * Entering Ra at Home is reported HERE rather than in each of the six CTAs
+   * that route through the picker, so they cannot drift apart. The CTAs that
+   * navigate straight to `/at-home` without the picker report it themselves —
+   * they never reach this function.
+   */
+  const openAudiencePicker = useCallback(
+    (destination = '/explore', ctaLocation?: string) => {
+      setAudiencePickerDestination(destination);
+      setSurface('audience-picker');
+      if (destination === '/at-home') {
+        trackExploreRaAtHome(ctaLocation ?? 'unknown', hasChosenAudience());
+      }
+    },
+    [],
+  );
   const openExplorePicker = useCallback(() => setSurface('explore-picker'), []);
   const openPaymentMethod = useCallback(() => setIsPaymentMethodOpen(true), []);
   const closePaymentMethod = useCallback(() => setIsPaymentMethodOpen(false), []);
@@ -827,12 +1008,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const openContactEdit = useCallback(() => setIsContactEditOpen(true), []);
   const closeContactEdit = useCallback(() => setIsContactEditOpen(false), []);
   const openWellnessHub = useCallback(() => setSurface('wellness-hub'), []);
+  /**
+   * Reported HERE, in the open action, rather than inside ServiceDetailSheet.
+   * The sheet stays mounted and re-renders on every variant tap and add-on
+   * toggle, so a render- or effect-driven push there would fire repeatedly for
+   * one viewing. This function runs exactly once per open, from a click.
+   */
   const openServiceDetail = useCallback<CartContextValue['openServiceDetail']>(
     (serviceId) => {
       setServiceDetail({ serviceId });
       setSurface('service-detail');
+
+      const service = getService(serviceId);
+      if (!service) return;
+      // The default variant is the one the sheet opens on (it initialises
+      // `selectedVariantId` from the first variant), so its price and label
+      // are what the customer actually sees at this moment.
+      const defaultVariant = service.variants?.[0];
+      trackViewItem(
+        {
+          item_id: service.id,
+          item_name: service.name,
+          price: defaultVariant?.price ?? service.price,
+          quantity: 1,
+          item_variant: defaultVariant?.label,
+          item_category: getSectionById(service.categoryId)?.name,
+        },
+        {
+          audience: audienceRef.current,
+          item_duration_min: defaultVariant?.durationMin ?? service.durationMin,
+        },
+      );
     },
-    []
+    [getService, getSectionById]
   );
   const closeServiceDetail = useCallback(() => {
     setSurface('none');
@@ -842,12 +1050,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setSurface('none');
     setDrawerStack([]);
     setServiceDetail(null);
-    setCheckoutStep('none');
+    setCheckoutStepTracked('none');
     setBookingResult(null);
     setPaymentMethod('card');
     setIsContactEditOpen(false);
     setIsPaymentMethodOpen(false);
-  }, []);
+  }, [setCheckoutStepTracked]);
 
   const pushDrawerView = useCallback((view: DrawerView) => {
     setDrawerStack((prev) => [...prev, view]);
@@ -874,7 +1082,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     surface,
     serviceDetail,
     checkoutStep,
-    setCheckoutStep,
+    // Consumers get the tracked setter; every checkout transition in the app
+    // therefore flows through one reporting point.
+    setCheckoutStep: setCheckoutStepTracked,
     bookingResult,
     resetCheckout,
     paymentMethod,

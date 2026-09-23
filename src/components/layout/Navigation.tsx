@@ -131,7 +131,7 @@ export function Navigation() {
 
   const goToAtHome = (closeMenu: () => void) => {
     closeMenu();
-    setTimeout(() => openAudiencePicker('/at-home'), 220);
+    setTimeout(() => openAudiencePicker('/at-home', 'nav_mobile_menu'), 220);
   };
 
   const goToWellnessHub = (closeMenu: () => void) => {
@@ -231,7 +231,7 @@ export function Navigation() {
             {/* Ra at Home — direct */}
             <button
               type="button"
-              onClick={() => openAudiencePicker('/at-home')}
+              onClick={() => openAudiencePicker('/at-home', 'nav_desktop_link')}
               className="text-sm font-medium text-white transition-colors duration-200 hover:opacity-70 whitespace-nowrap"
             >
               Ra at Home

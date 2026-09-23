@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEnterRaAtHome } from '@/components/analytics/useEnterRaAtHome';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, MapPin, X } from 'lucide-react';
 import {
@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { submitLead } from '@/lib/api/leads';
+import { trackGenerateLead } from '@/lib/analytics';
 
 const RA_EMBLEM = '/assets/Logo/ra-emblem.png';
 
@@ -25,7 +26,7 @@ export function WelcomeAnnouncement() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const navigate = useNavigate();
+  const enterRaAtHome = useEnterRaAtHome();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -39,7 +40,7 @@ export function WelcomeAnnouncement() {
 
   const handleExplore = () => {
     setOpen(false);
-    navigate('/at-home');
+    enterRaAtHome('welcome_popup');
   };
 
   const handleEmailSubmit = (e: React.FormEvent) => {
@@ -65,6 +66,14 @@ export function WelcomeAnnouncement() {
     }).catch(() => {});
     setSubmitted(true);
     setEmailError('');
+
+    // Reported once validation passed and the submission was made, matching
+    // what the customer is told ("Thanks — we'll be in touch"). The lead POST
+    // is deliberately fire-and-forget, so its result is not the signal here.
+    //
+    // Only the form's identity is sent. The email address stays out of the
+    // dataLayer entirely — `trackGenerateLead` has no parameter for it.
+    trackGenerateLead('ra_relocation_newsletter', 'welcome_popup');
   };
 
   return (
