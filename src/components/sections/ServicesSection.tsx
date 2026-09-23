@@ -137,7 +137,11 @@ export function ServicesSection() {
         <div className="absolute top-0 left-0 right-0 z-30 pt-6 pb-3 bg-gradient-to-b from-bg-dark/90 via-bg-dark/70 to-transparent">
           <div className="flex items-center justify-between px-6 lg:px-16 mb-4">
             <p className="text-white/50 text-xs uppercase tracking-[0.18em]">Our Rituals for</p>
-            <AudienceToggle value={audience} onChange={setAudience} size="sm" />
+            <AudienceToggle
+              value={audience}
+              onChange={(next) => setAudience(next, 'home_services_toggle_desktop')}
+              size="sm"
+            />
           </div>
           <RitualChipRow
             chips={chips}
@@ -256,7 +260,11 @@ export function ServicesSection() {
         <div className="px-6 mb-3">
           <div className="flex items-center justify-between">
             <p className="text-white/50 text-xs uppercase tracking-[0.18em]">Our Rituals for</p>
-            <AudienceToggle value={audience} onChange={setAudience} size="sm" />
+            <AudienceToggle
+              value={audience}
+              onChange={(next) => setAudience(next, 'home_services_toggle_mobile')}
+              size="sm"
+            />
           </div>
         </div>
         <RitualChipRow

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STUDIO_PHONE_DISPLAY, STUDIO_WHATSAPP } from '@/lib/contact';
+import { trackContactClick } from '@/lib/analytics';
 
 const STORAGE_KEY = 'ra-membership-requests';
 const WHATSAPP_PHONE = STUDIO_WHATSAPP;
@@ -105,6 +106,14 @@ export function WellnessHubPage() {
     const url = buildWhatsAppLink(req);
     window.open(url, '_blank', 'noopener,noreferrer');
     setSubmitted(true);
+
+    // A GTM Click trigger cannot see this — WhatsApp is opened
+    // programmatically, so no anchor is ever clicked. Hence the explicit push
+    // here, unlike the plain Call/WhatsApp anchors elsewhere in the app.
+    //
+    // `link_url` is deliberately omitted: `url` carries the customer's name,
+    // phone and email in its prefilled `?text=` message.
+    trackContactClick({ method: 'whatsapp', cta_location: 'wellness_hub_page' });
   };
 
   return (

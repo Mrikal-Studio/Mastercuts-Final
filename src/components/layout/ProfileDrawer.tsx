@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEnterRaAtHome } from '@/components/analytics/useEnterRaAtHome';
 import { toast } from 'sonner';
 import { Bell, X, LogOut, User as UserIcon, Users, ChevronRight } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -395,7 +395,7 @@ export function ProfileDrawer() {
     removeWaitlistRequest,
   } = useCart();
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
+  const enterRaAtHome = useEnterRaAtHome();
   const open = surface === 'profile';
   const side = isMobile ? 'bottom' : 'right';
   const [selected, setSelected] = useState<CardBooking | null>(null);
@@ -407,7 +407,7 @@ export function ProfileDrawer() {
 
   const handleBookNow = () => {
     closeAll();
-    navigate('/at-home');
+    enterRaAtHome('profile_drawer_book_now');
   };
 
   // Pull fresh server bookings whenever the profile opens.

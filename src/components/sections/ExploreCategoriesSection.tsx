@@ -47,7 +47,7 @@ export function ExploreCategoriesSection() {
               raBadge
               titleAlign="center"
               imageObjectPosition="object-[50%_71%] lg:object-[53%_67%]"
-              onClick={() => openAudiencePicker('/at-home')}
+              onClick={() => openAudiencePicker('/at-home', 'home_explore_categories_card')}
             />
           </div>
 

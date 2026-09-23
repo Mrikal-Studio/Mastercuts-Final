@@ -5,6 +5,7 @@ import { useCatalog } from '@/lib/booking/CatalogProvider';
 import { useAudience } from '@/components/services/useAudience';
 import { AudienceToggle } from '@/components/services/AudienceToggle';
 import { ServiceCard } from '@/components/services/ServiceCard';
+import { trackCategorySelected } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 const RA_EMBLEM = '/assets/Logo/ra-emblem.png';
@@ -139,9 +140,28 @@ export function AtHomePage() {
     container.scrollTo({ left: clamped, behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [activeId, reduceMotion]);
 
+  /**
+   * A chip TAP is the only explicit category selection on this page.
+   *
+   * The scroll-spy effect above also writes `selectedId`, but that is the page
+   * following the reader, not the reader choosing a category — instrumenting
+   * `selectedId` (or `activeId`) would emit an event for every section the
+   * user scrolls past and drown the real signal. So the push lives here, in
+   * the click handler, and nowhere else.
+   */
   const handleChipClick = (id: string) => {
     setSelectedId(id);
     scrollToSection(id);
+
+    const section = sections.find((s) => s.id === id);
+    if (section) {
+      trackCategorySelected({
+        item_category: section.name,
+        category_id: section.id,
+        audience,
+        selection_source: 'at_home_chip',
+      });
+    }
   };
 
   const setSectionRef = (id: string) => (el: HTMLElement | null) => {
@@ -204,7 +224,12 @@ export function AtHomePage() {
           <p className="text-text-secondary text-[11px] uppercase tracking-[0.18em] whitespace-nowrap">
             Home services for
           </p>
-          <AudienceToggle value={audience} onChange={setAudience} size="sm" variant="light" />
+          <AudienceToggle
+            value={audience}
+            onChange={(next) => setAudience(next, 'at_home_toggle')}
+            size="sm"
+            variant="light"
+          />
         </div>
 
         {/* Category chip row — full width container. Inner uses w-max so it

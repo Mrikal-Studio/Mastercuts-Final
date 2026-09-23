@@ -13,14 +13,14 @@ function Body({ onClose }: { onClose: () => void }) {
   const { openAudiencePicker, openWellnessHub } = useCart();
 
   const handleSalon = (audience: 'gentlemen' | 'ladies') => {
-    setAudience(audience);
+    setAudience(audience, 'explore_categories_sheet');
     onClose();
     setTimeout(() => navigate('/explore'), 220);
   };
 
   const handleAtHome = () => {
     onClose();
-    setTimeout(() => openAudiencePicker('/at-home'), 220);
+    setTimeout(() => openAudiencePicker('/at-home', 'explore_categories_sheet'), 220);
   };
 
   const handleHub = () => {

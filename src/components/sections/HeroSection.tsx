@@ -10,6 +10,7 @@ import {
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEnterRaAtHome } from '@/components/analytics/useEnterRaAtHome';
 import { useCart } from '@/components/cart/CartProvider';
 
 type MediaType = 'video' | 'image';
@@ -103,6 +104,7 @@ export function HeroSection() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const navigate = useNavigate();
+  const enterRaAtHome = useEnterRaAtHome();
   const { openAudiencePicker, openWellnessHub, openExplorePicker } = useCart();
   const progress = useMotionValue(0);
   const prefersReducedMotion = useReducedMotion();
@@ -143,8 +145,8 @@ export function HeroSection() {
         'Curated wellness and beauty rituals brought to the comfort and privacy of your home by trained and certified professionals.',
       media: { type: 'image', src: '/assets/Images/Ra%20at%20home.jpeg' },
       topMark: '/assets/Logo/ra-emblem.png',
-      primaryCta: { label: 'Enter Ra at Home', onClick: () => openAudiencePicker('/at-home') },
-      secondaryCta: { label: 'Step inside Ra at Home', onClick: () => navigate('/at-home') },
+      primaryCta: { label: 'Enter Ra at Home', onClick: () => openAudiencePicker('/at-home', 'home_hero_primary_cta') },
+      secondaryCta: { label: 'Step inside Ra at Home', onClick: () => enterRaAtHome('home_hero_secondary_cta') },
     },
     {
       id: 'wellness-hub',

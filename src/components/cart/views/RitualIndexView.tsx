@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../CartProvider';
 import { useCatalog } from '@/lib/booking/CatalogProvider';
 import { DrawerStickyFooter } from './DrawerStickyFooter';
+import { useAudience } from '@/components/services/useAudience';
+import { trackCategorySelected } from '@/lib/analytics';
 
 interface Props {
   onClose: () => void;
@@ -14,11 +16,28 @@ export function RitualIndexView({ onClose, canGoBack, onBack }: Props) {
   const { closeAll } = useCart();
   const navigate = useNavigate();
   const { sections, journeys } = useCatalog();
+  const [audience] = useAudience();
 
   // Anchor on the readable slug rather than the sub-category UUID.
   const goToSection = (slug: string) => {
     closeAll();
     setTimeout(() => navigate(`/explore#${slug}`), 220);
+  };
+
+  /**
+   * Tapping a section in this list IS an explicit category choice, so it is
+   * reported here. `goToSection` itself is not instrumented because it also
+   * serves the Curated Journeys entry, which is a package shortcut rather
+   * than a catalog category.
+   */
+  const selectSection = (section: (typeof sections)[number]) => {
+    trackCategorySelected({
+      item_category: section.name,
+      category_id: section.id,
+      audience,
+      selection_source: 'cart_section_index',
+    });
+    goToSection(section.slug);
   };
 
   return (
@@ -88,7 +107,7 @@ export function RitualIndexView({ onClose, canGoBack, onBack }: Props) {
               <li key={section.id}>
                 <button
                   type="button"
-                  onClick={() => goToSection(section.slug)}
+                  onClick={() => selectSection(section)}
                   className="group w-full flex items-center gap-4 py-5 text-left"
                 >
                   <div className="w-20 h-24 flex-shrink-0 overflow-hidden bg-black/5">
