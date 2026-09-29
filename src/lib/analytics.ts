@@ -19,7 +19,13 @@
  * This module owns the whole event vocabulary. Components import a named
  * `track*` helper rather than assembling a payload, so the shape of an event
  * is defined in exactly one place and cannot drift between call sites.
+ *
+ * Every event also carries `tenant_id` — see `pushEvent`.
  */
+
+// Safe to import: `env.ts` has no side effects at module load. Its only throw
+// is lazy, inside `getApiBaseUrl()`, which this module never calls.
+import { getPartnerId } from "./api/env";
 
 const CURRENCY = "AED";
 
@@ -97,12 +103,31 @@ function ensureDataLayer(): unknown[] | null {
 /**
  * Push a raw event. Swallows any failure — analytics must never break a
  * booking flow.
+ *
+ * Every event is stamped with `tenant_id`, the partner this build books for.
+ * It is applied HERE rather than in each `track*` helper because this is the
+ * only `dataLayer.push` in the codebase — so the stamp cannot be forgotten by
+ * a future event, and no call site has to remember it.
+ *
+ * The value comes from the same `getPartnerId()` the API layer sends as
+ * `X-Partner-Id`, so analytics and API requests can never disagree about which
+ * tenant a session belongs to. It resolves from a build-time env constant, so
+ * it is available synchronously before any event can fire.
+ *
+ * When the partner is unset the key is OMITTED rather than sent as
+ * `"undefined"` or `""` — a missing parameter is honest and easy to filter in
+ * GA4, whereas a literal "undefined" string silently pollutes reports.
  */
 export function pushEvent(payload: DataLayerEvent): void {
   const dataLayer = ensureDataLayer();
   if (!dataLayer) return;
   try {
-    dataLayer.push(payload);
+    // Inside the try on purpose: resolving the tenant must not be able to
+    // break a booking flow either, and a throw here degrades to no event
+    // rather than an error surfacing to the customer.
+    const tenantId = getPartnerId();
+    // `tenant_id` is spread last so a caller cannot silently shadow it.
+    dataLayer.push(tenantId ? { ...payload, tenant_id: tenantId } : payload);
   } catch {
     // Ignored on purpose: a failed metric must not surface to the customer.
   }
