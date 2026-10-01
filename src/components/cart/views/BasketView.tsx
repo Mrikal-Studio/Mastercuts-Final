@@ -5,6 +5,8 @@ import { useCart, useCartTotals, formatAed, formatAedPrecise, formatDuration } f
 import { CartItemRow } from '../CartItemRow';
 import { FrequentlyAddedSection } from '../FrequentlyAddedSection';
 import { cn } from '@/lib/utils';
+import { priceBreakdown } from '@/lib/pricing';
+import { validateCoupon } from '@/lib/api/bookings';
 
 function formatDateLabel(key: string): string {
   const [Y, M, D] = key.split('-').map(Number);
@@ -36,6 +38,7 @@ export function BasketView({ onClose, onContinue }: Props) {
     confirmBooking,
     getSelectedAddress,
     openContactEdit,
+    updateDraftCheckout,
   } = useCart();
   const { totalPrice, totalDuration, count } = useCartTotals();
   const navigate = useNavigate();
@@ -49,12 +52,45 @@ export function BasketView({ onClose, onContinue }: Props) {
   const hasTimeSlot = !!(cart.draftCheckout?.date && cart.draftCheckout?.time);
   const isFinalState = hasAddress && hasTimeSlot;
 
-  // Catalog prices are VAT-inclusive (UAE 5%). Derive subtotal + VAT
-  // from the inclusive total so menu prices and the cart total match.
-  const subtotal = totalPrice / 1.05;
-  const vat = totalPrice - subtotal;
-  const grandTotal = totalPrice;
+  // Catalog prices are VAT-inclusive (UAE 5%). Derive subtotal + VAT from the
+  // inclusive total; a coupon is taken off before VAT is re-split (shared
+  // maths in lib/pricing — the backend computes the same figures). With no
+  // coupon this is exactly subtotal = total / 1.05, VAT = total − subtotal.
+  const coupon = cart.draftCheckout?.coupon;
+  const breakdown = priceBreakdown(totalPrice, coupon?.percentage ?? 0);
+  const subtotal = breakdown.subtotalNet;
+  const vat = breakdown.vat;
+  const grandTotal = breakdown.total;
   const canPay = isFinalState && policyAccepted && !submitting;
+
+  // Coupon entry. Only a code the backend just confirmed is ever stored on the
+  // cart; booking creation validates it again.
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code || applyingCoupon) return;
+    setApplyingCoupon(true);
+    setCouponError(null);
+    try {
+      const { coupon: valid } = await validateCoupon(code);
+      updateDraftCheckout({
+        coupon: { code: valid.coupon_code, percentage: valid.discount_percentage },
+      });
+      setCouponInput('');
+    } catch {
+      setCouponError('This coupon code is not valid.');
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    updateDraftCheckout({ coupon: undefined });
+    setCouponError(null);
+  };
 
   const handlePay = async () => {
     if (!canPay) return;
@@ -236,14 +272,89 @@ export function BasketView({ onClose, onContinue }: Props) {
                 ))}
               </ul>
 
+              {/* Coupon */}
+              <div className="mb-3 pb-3 border-b border-black/10">
+                {coupon ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-text-primary">
+                      <span className="uppercase tracking-wider">{coupon.code}</span>
+                      <span className="text-text-secondary"> · {coupon.percentage}% off applied</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-[11px] text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={couponInput}
+                        // Codes are stored uppercase; convert as the customer
+                        // types so what they see is exactly what is checked.
+                        onChange={(e) => {
+                          setCouponInput(e.target.value.toUpperCase().replace(/\s+/g, ''));
+                          setCouponError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleApplyCoupon();
+                        }}
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder="Enter coupon code"
+                        aria-label="Coupon code"
+                        className="min-w-0 flex-1 rounded-full border border-black/15 bg-transparent px-4 py-2 text-xs uppercase tracking-wider text-text-primary placeholder:normal-case placeholder:tracking-normal placeholder:text-text-secondary focus:outline-none focus:border-black/40"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponInput.trim() || applyingCoupon}
+                        className={cn(
+                          'shrink-0 rounded-full px-4 py-2 text-[11px] uppercase tracking-wider transition-colors',
+                          couponInput.trim() && !applyingCoupon
+                            ? 'bg-bg-dark text-white hover:bg-bg-darker'
+                            : 'bg-black/10 text-text-muted cursor-not-allowed',
+                        )}
+                      >
+                        {applyingCoupon ? 'Checking…' : 'Apply'}
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-[11px] text-red-600 mt-2">{couponError}</p>
+                    )}
+                  </>
+                )}
+              </div>
+
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-xs uppercase tracking-wider text-text-secondary">Subtotal</span>
                 <span className="text-sm text-text-primary tabular-nums">{formatAedPrecise(subtotal)}</span>
               </div>
-              <div className="flex items-baseline justify-between mb-3 pb-3 border-b border-black/10">
+              <div
+                className={cn(
+                  'flex items-baseline justify-between',
+                  coupon ? 'mb-2' : 'mb-3 pb-3 border-b border-black/10',
+                )}
+              >
                 <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
                 <span className="text-sm text-text-primary tabular-nums">{formatAedPrecise(vat)}</span>
               </div>
+              {coupon && (
+                <div className="flex items-baseline justify-between mb-3 pb-3 border-b border-black/10">
+                  <span className="text-xs uppercase tracking-wider text-text-secondary">
+                    Coupon ({coupon.code})
+                  </span>
+                  <span className="text-sm text-text-primary tabular-nums">
+                    −{formatAedPrecise(breakdown.discountNet)}
+                  </span>
+                </div>
+              )}
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-xs uppercase tracking-wider text-text-primary font-medium">Total</span>
                 <span className="font-serif text-2xl text-text-primary tabular-nums">{formatAed(grandTotal)}</span>

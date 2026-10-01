@@ -50,6 +50,12 @@ export interface BookingRecord {
   payment_status: string;           // "pay_at_salon" in Phase 1
   customer: BookingCustomer;
   is_cancelled?: boolean;
+  // Present only on couponed bookings. `total_price` stays the gross line sum;
+  // `payable_total` is what the customer owes after the coupon.
+  coupon_code?: string;
+  coupon_discount_pct?: number;
+  discount_amount?: number;
+  payable_total?: number;
 }
 
 export interface NotifyResult {
@@ -103,6 +109,31 @@ export interface CreateBookingPayload {
   // Optional unit quantities for unit-priced services. Omitted entirely when
   // the cart holds none, so an ordinary booking's payload is unchanged.
   service_units?: ServiceUnits[];
+  // Optional coupon. Omitted when none is applied, so an ordinary booking's
+  // payload is unchanged. The backend re-validates it (400 if invalid).
+  coupon_code?: string;
+}
+
+export interface CouponInfo {
+  coupon_code: string;
+  discount_percentage: number;
+  description: string | null;
+  /** epoch ms; null = never expires */
+  expires_at?: number | null;
+}
+
+/**
+ * Check a coupon code for this salon (public — no token needed). Resolves the
+ * coupon when valid; rejects with ApiError 400 when invalid or expired.
+ */
+export function validateCoupon(
+  code: string,
+  signal?: AbortSignal,
+): Promise<{ coupon: CouponInfo }> {
+  return apiClient.get<{ coupon: CouponInfo }>(
+    `/bookings/coupon?code=${encodeURIComponent(code.trim())}`,
+    { signal },
+  );
 }
 
 export function createBooking(
