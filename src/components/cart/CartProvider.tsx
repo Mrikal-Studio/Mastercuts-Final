@@ -725,6 +725,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           customer_address: addressLine,
           service_links: serviceLinks.length > 0 ? serviceLinks : undefined,
           service_units: serviceUnits.length > 0 ? serviceUnits : undefined,
+          coupon_code: draft?.coupon?.code || undefined,
         },
         account.token,
       );
@@ -761,6 +762,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const requiresConfirmation = !!cart.draftCheckout?.outsideImperialAvenue;
 
+    // The coupon as the BACKEND recorded it (it re-validated the code), not the
+    // cart's copy. Absent → no coupon on this booking.
+    const coupon = apiResult.booking.coupon_code
+      ? {
+          code: apiResult.booking.coupon_code,
+          percentage: apiResult.booking.coupon_discount_pct ?? 0,
+        }
+      : undefined;
+
     // Use the API booking_token as the user-facing reference. Keep cart
     // items snapshot locally so SuccessState can show line-item detail
     // (the API only returns the per-service snapshot, not the cart-level
@@ -772,6 +782,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       time,
       totalDuration: apiResult.booking.total_duration_min,
       totalPrice: apiResult.booking.total_price || subtotal,
+      coupon,
       guest,
       createdAt: Date.now(),
       status: 'confirmed',
@@ -802,7 +813,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           getSectionById(getService(item.serviceId)?.categoryId)?.name,
         ),
       ),
-      apiResult.booking.total_price || subtotal,
+      apiResult.booking.payable_total ?? (apiResult.booking.total_price || subtotal),
       {
         booking_duration_min: apiResult.booking.total_duration_min,
         audience: audienceRef.current,

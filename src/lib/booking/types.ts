@@ -231,6 +231,14 @@ export interface DraftCheckout {
   // Surfaces the concierge tooltip in the cart and flags the booking
   // record as requiresConfirmation at submit time.
   outsideImperialAvenue?: boolean;
+  // Coupon applied in the cart — only ever set from a successful backend
+  // validation. Re-validated by the backend when the booking is created.
+  coupon?: AppliedCoupon;
+}
+
+export interface AppliedCoupon {
+  code: string;
+  percentage: number;
 }
 
 export interface Cart {
@@ -259,7 +267,10 @@ export interface BookingRecord {
   date: string;
   time: string;
   totalDuration: number;
+  // Gross (VAT-inclusive) line sum. With a coupon, the payable total is
+  // priceBreakdown(totalPrice, coupon.percentage).total.
   totalPrice: number;
+  coupon?: AppliedCoupon;
   guest: GuestDetails;
   createdAt: number;
   status: 'confirmed' | 'cancelled';

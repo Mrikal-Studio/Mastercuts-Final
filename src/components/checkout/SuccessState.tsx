@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Check, Calendar, Share2, MapPin } from 'lucide-react';
 import type { BookingRecord } from '@/lib/booking/types';
 import { formatAed, formatAedPrecise, formatDuration } from '@/components/cart/CartProvider';
+import { priceBreakdown } from '@/lib/pricing';
 
 interface Props {
   booking: BookingRecord;
@@ -30,9 +31,11 @@ export function SuccessState({ booking, onDone }: Props) {
   const firstName = booking.guest.name.split(' ')[0] ?? 'friend';
 
   // Prices are VAT-inclusive (UAE 5%). Derive subtotal + VAT out of the
-  // total so the grand total stays equal to the charged amount.
-  const subtotal = booking.totalPrice / 1.05;
-  const vat = booking.totalPrice - subtotal;
+  // total (after any coupon) so the grand total equals the charged amount.
+  const coupon = booking.coupon;
+  const breakdown = priceBreakdown(booking.totalPrice, coupon?.percentage ?? 0);
+  const subtotal = breakdown.subtotalNet;
+  const vat = breakdown.vat;
 
   return (
     <div className="flex-1 overflow-y-auto bg-bg-primary">
@@ -140,9 +143,15 @@ export function SuccessState({ booking, onDone }: Props) {
               <span className="text-xs uppercase tracking-wider text-white/50">VAT (5%)</span>
               <span className="text-sm text-white/80">{formatAedPrecise(vat)}</span>
             </div>
+            {coupon && (
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs uppercase tracking-wider text-white/50">Coupon ({coupon.code})</span>
+                <span className="text-sm text-white/80">−{formatAedPrecise(breakdown.discountNet)}</span>
+              </div>
+            )}
             <div className="flex items-baseline justify-between pt-2 border-t border-white/10">
               <span className="text-xs uppercase tracking-wider text-white">Total</span>
-              <span className="font-serif text-2xl">{formatAed(booking.totalPrice)}</span>
+              <span className="font-serif text-2xl">{formatAed(breakdown.total)}</span>
             </div>
             <p className="text-[10px] text-white/40 leading-relaxed pt-1">
               All prices in AED. Includes 5% VAT.

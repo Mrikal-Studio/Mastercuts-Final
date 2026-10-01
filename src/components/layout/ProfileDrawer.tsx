@@ -8,6 +8,7 @@ import { useCart, formatAed, formatAedPrecise, formatDuration } from '@/componen
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { BookingRecord } from '@/lib/booking/types';
 import type { BookingRecord as ApiBooking } from '@/lib/api/bookings';
+import { priceBreakdown } from '@/lib/pricing';
 
 function formatDateLabel(key: string): string {
   const [Y, M, D] = key.split('-').map(Number);
@@ -37,11 +38,18 @@ interface CardBooking {
   reference: string; // booking_token — the user-facing reference
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
-  price: number;
+  price: number; // gross (VAT-inclusive) line sum
+  // Coupon applied at booking — absent on coupon-less bookings.
+  couponCode?: string;
+  couponPct?: number;
   totalDuration?: number;
   cancelled: boolean;
   services: CardService[];
 }
+
+// Subtotal / VAT / coupon / payable for a card. No coupon → the pre-coupon
+// figures (subtotal = price / 1.05, total = price).
+const breakdownOf = (b: CardBooking) => priceBreakdown(b.price, b.couponPct ?? 0);
 
 // The shared Slot row now stores slot_time as canonical 12h ("hh:mm a"); older
 // rows may still be 24h ("HH:mm"). The drawer works internally in 24h (its date
@@ -62,6 +70,8 @@ const fromRemote = (b: ApiBooking): CardBooking => ({
   date: b.date,
   time: to24h(b.slot_time),
   price: b.total_price,
+  couponCode: b.coupon_code,
+  couponPct: b.coupon_discount_pct,
   totalDuration: b.total_duration_min,
   cancelled: !!b.is_cancelled,
   services: (b.services ?? []).map((s) => ({
@@ -82,6 +92,8 @@ const fromLocal = (b: BookingRecord): CardBooking => ({
   date: b.date,
   time: b.time,
   price: b.totalPrice,
+  couponCode: b.coupon?.code,
+  couponPct: b.coupon?.percentage,
   totalDuration: b.totalDuration,
   cancelled: b.status !== 'confirmed',
   services: (b.items ?? []).map((i) => ({
@@ -146,7 +158,7 @@ function BookingCard({
               b.cancelled ? 'text-text-secondary line-through' : 'text-text-primary'
             }`}
           >
-            {formatAed(b.price)}
+            {formatAed(breakdownOf(b).total)}
             <ChevronRight className="w-3.5 h-3.5 text-text-secondary no-underline" />
           </span>
         </div>
@@ -291,21 +303,35 @@ function BookingDetailBody({ b, onClose }: { b: CardBooking; onClose: () => void
           <div className="flex items-baseline justify-between mb-1.5">
             <span className="text-xs uppercase tracking-wider text-text-secondary">Subtotal</span>
             <span className="text-sm text-text-primary tabular-nums">
-              {formatAedPrecise(b.price / 1.05)}
+              {formatAedPrecise(breakdownOf(b).subtotalNet)}
             </span>
           </div>
-          <div className="flex items-baseline justify-between mb-2.5 pb-2.5 border-b border-black/10">
+          <div
+            className={`flex items-baseline justify-between ${
+              b.couponCode ? 'mb-1.5' : 'mb-2.5 pb-2.5 border-b border-black/10'
+            }`}
+          >
             <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
             <span className="text-sm text-text-primary tabular-nums">
-              {formatAedPrecise(b.price - b.price / 1.05)}
+              {formatAedPrecise(breakdownOf(b).vat)}
             </span>
           </div>
+          {b.couponCode && (
+            <div className="flex items-baseline justify-between mb-2.5 pb-2.5 border-b border-black/10">
+              <span className="text-xs uppercase tracking-wider text-text-secondary">
+                Coupon ({b.couponCode})
+              </span>
+              <span className="text-sm text-text-primary tabular-nums">
+                −{formatAedPrecise(breakdownOf(b).discountNet)}
+              </span>
+            </div>
+          )}
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-text-primary">
               Total{b.totalDuration ? ` · ${formatDuration(b.totalDuration)}` : ''}
             </span>
             <span className="text-sm font-medium text-text-primary tabular-nums">
-              {formatAed(b.price)}
+              {formatAed(breakdownOf(b).total)}
             </span>
           </div>
         </div>
