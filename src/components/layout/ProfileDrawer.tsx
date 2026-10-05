@@ -306,18 +306,8 @@ function BookingDetailBody({ b, onClose }: { b: CardBooking; onClose: () => void
               {formatAedPrecise(breakdownOf(b).subtotalNet)}
             </span>
           </div>
-          <div
-            className={`flex items-baseline justify-between ${
-              b.couponCode ? 'mb-1.5' : 'mb-2.5 pb-2.5 border-b border-black/10'
-            }`}
-          >
-            <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
-            <span className="text-sm text-text-primary tabular-nums">
-              {formatAedPrecise(breakdownOf(b).vat)}
-            </span>
-          </div>
           {b.couponCode && (
-            <div className="flex items-baseline justify-between mb-2.5 pb-2.5 border-b border-black/10">
+            <div className="flex items-baseline justify-between mb-1.5">
               <span className="text-xs uppercase tracking-wider text-text-secondary">
                 Coupon ({b.couponCode})
               </span>
@@ -326,6 +316,12 @@ function BookingDetailBody({ b, onClose }: { b: CardBooking; onClose: () => void
               </span>
             </div>
           )}
+          <div className="flex items-baseline justify-between mb-2.5 pb-2.5 border-b border-black/10">
+            <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
+            <span className="text-sm text-text-primary tabular-nums">
+              {formatAedPrecise(breakdownOf(b).vat)}
+            </span>
+          </div>
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-text-primary">
               Total{b.totalDuration ? ` · ${formatDuration(b.totalDuration)}` : ''}

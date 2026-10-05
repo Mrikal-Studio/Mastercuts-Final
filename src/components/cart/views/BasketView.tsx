@@ -336,17 +336,8 @@ export function BasketView({ onClose, onContinue }: Props) {
                 <span className="text-xs uppercase tracking-wider text-text-secondary">Subtotal</span>
                 <span className="text-sm text-text-primary tabular-nums">{formatAedPrecise(subtotal)}</span>
               </div>
-              <div
-                className={cn(
-                  'flex items-baseline justify-between',
-                  coupon ? 'mb-2' : 'mb-3 pb-3 border-b border-black/10',
-                )}
-              >
-                <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
-                <span className="text-sm text-text-primary tabular-nums">{formatAedPrecise(vat)}</span>
-              </div>
               {coupon && (
-                <div className="flex items-baseline justify-between mb-3 pb-3 border-b border-black/10">
+                <div className="flex items-baseline justify-between mb-2">
                   <span className="text-xs uppercase tracking-wider text-text-secondary">
                     Coupon ({coupon.code})
                   </span>
@@ -355,6 +346,10 @@ export function BasketView({ onClose, onContinue }: Props) {
                   </span>
                 </div>
               )}
+              <div className="flex items-baseline justify-between mb-3 pb-3 border-b border-black/10">
+                <span className="text-xs uppercase tracking-wider text-text-secondary">VAT (5%)</span>
+                <span className="text-sm text-text-primary tabular-nums">{formatAedPrecise(vat)}</span>
+              </div>
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-xs uppercase tracking-wider text-text-primary font-medium">Total</span>
                 <span className="font-serif text-2xl text-text-primary tabular-nums">{formatAed(grandTotal)}</span>

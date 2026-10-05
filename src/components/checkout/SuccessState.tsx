@@ -139,16 +139,16 @@ export function SuccessState({ booking, onDone }: Props) {
               <span className="text-xs uppercase tracking-wider text-white/50">Subtotal</span>
               <span className="text-sm text-white/80">{formatAedPrecise(subtotal)}</span>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-wider text-white/50">VAT (5%)</span>
-              <span className="text-sm text-white/80">{formatAedPrecise(vat)}</span>
-            </div>
             {coupon && (
               <div className="flex items-baseline justify-between">
                 <span className="text-xs uppercase tracking-wider text-white/50">Coupon ({coupon.code})</span>
                 <span className="text-sm text-white/80">−{formatAedPrecise(breakdown.discountNet)}</span>
               </div>
             )}
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs uppercase tracking-wider text-white/50">VAT (5%)</span>
+              <span className="text-sm text-white/80">{formatAedPrecise(vat)}</span>
+            </div>
             <div className="flex items-baseline justify-between pt-2 border-t border-white/10">
               <span className="text-xs uppercase tracking-wider text-white">Total</span>
               <span className="font-serif text-2xl">{formatAed(breakdown.total)}</span>
